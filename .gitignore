@@ -1,0 +1,13 @@
+# Frontend
+node_modules/
+.next/
+out/
+.env*.local
+
+# Backend
+__pycache__/
+*.pyc
+.venv/
+env/
+vnv/
+pokeverse.db

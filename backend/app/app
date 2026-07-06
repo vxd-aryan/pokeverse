@@ -1,0 +1,53 @@
+import requests
+from app.database import SessionLocal, engine, Base
+from app.models import User
+
+def fast_seed():
+    print("Recreating database tables...")
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    
+    db = SessionLocal()
+    
+    print("Creating mock user AshKetchum with fresh stats...")
+    mock_user = User(
+        id=1, 
+        username="AshKetchum", 
+        current_xp=250,
+        level=3, 
+        title="Novice Trainer",
+       # guessed_pokemon=[]
+    )
+    db.add(mock_user)
+    db.commit()
+
+    print("\nExecuting instant bulk fetch from PokéAPI...")
+    url = "https://pokeapi.co/api/v2/pokemon?limit=251"
+    try:
+        res = requests.get(url)
+        results = res.json().get("results", [])
+        
+        for index, p in enumerate(results, start=1):
+            sprite_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{index}.png"
+            artwork_url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/{index}.png"
+            
+            pokemon_entry = Pokemon(
+                id=index,
+                name=p["name"].capitalize(),
+                primary_type="Normal", 
+                secondary_type=None,
+                sprite_url=sprite_url,
+                artwork_url=artwork_url
+            )
+            db.add(pokemon_entry)
+            
+        db.commit()
+        print("🎉 Full Database successfully seeded with 251 Pokémon!")
+        
+    except Exception as e:
+        print(f"Error during seeding: {e}")
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    fast_seed()
