@@ -7,6 +7,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon: The Original Series",
     region: "Kanto, Orange Islands, Johto",
     seasons: 5,
+    type: "TV Series",
+    releaseYear: 1997,
+    thumbnail: "/images/series/original-series.jpg",
+    chronologicalOrder: 1,
+    episodeCount: 274,
+    mainCharacters: ["Ash", "Misty", "Brock", "Tracey"],
+    featuredPokemon: ["Pikachu", "Charizard", "Bulbasaur", "Squirtle"],
+    villains: ["Team Rocket"],
     description: "Ash Ketchum, a passionate but deeply stubborn ten-year-old from Pallet Town, wakes up late on the most important day of his life. Forced to partner with a highly uncooperative Pikachu, Ash embarks on a defining journey across the Kanto, Orange Islands, and Johto regions. This saga chronicles the foundation of a Pokémon Master. It covers Ash’s early struggles to earn his gym badges, his legendary rivalries with Gary Oak, and the formation of his iconic travel trio alongside Cerulean City Gym Leader Misty and Pewter City Gym Leader Brock. From releasing his Butterfree to battling the relentless Team Rocket trio, this is the era that established the unbreakable bond between a boy and his Pikachu."
   },
   "advanced-generation": {
@@ -14,6 +22,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon: Advanced Generation",
     region: "Hoenn, Kanto (Battle Frontier)",
     seasons: 4,
+    type: "TV Series",
+    releaseYear: 2002,
+    thumbnail: "/images/series/advanced-generation.jpg",
+    chronologicalOrder: 2,
+    episodeCount: 192,
+    mainCharacters: ["Ash", "May", "Max", "Brock"],
+    featuredPokemon: ["Pikachu", "Sceptile", "Blaziken", "Swellow"],
+    villains: ["Team Rocket", "Team Aqua", "Team Magma"],
     description: "Leaving all his Pokémon behind except Pikachu, Ash travels to the lush, nature-rich Hoenn region for a completely fresh start. The dynamic shifts dramatically as Ash steps into a mentor role for May, a novice trainer who discovers her passion for the newly introduced Pokémon Contests, and her hyper-intelligent little brother, Max. This era is defined by extreme environmental conflicts, as Ash and his friends find themselves caught in the crossfire between two eco-terrorist organizations: Team Magma and Team Aqua, who seek to awaken the legendary titans Groudon and Kyogre. After conquering the Hoenn League, Ash returns to Kanto to face his most grueling challenge yet: the elite Battle Frontier."
   },
   "diamond-pearl": {
@@ -21,6 +37,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon: Diamond and Pearl",
     region: "Sinnoh",
     seasons: 4,
+    type: "TV Series",
+    releaseYear: 2006,
+    thumbnail: "/images/series/diamond-pearl.jpg",
+    chronologicalOrder: 3,
+    episodeCount: 191,
+    mainCharacters: ["Ash", "Dawn", "Brock"],
+    featuredPokemon: ["Pikachu", "Infernape", "Piplup", "Lucario"],
+    villains: ["Team Rocket", "Team Galactic"],
     description: "Widely regarded as one of the most intense and strategically complex arcs in the database, the Sinnoh saga pushes Ash to his absolute limits. Joined by Dawn, a fiercely ambitious Coordinator striving to honor her mother's legacy, Ash faces off against Paul—a ruthlessly calculating rival whose ideology on Pokémon training opposes everything Ash stands for. The lore deepens immensely as the group uncovers the creation myths of the Pokémon universe. They must repeatedly thwart Team Galactic, a terrifying syndicate led by Cyrus, who intends to use the god-like entities Dialga and Palkia to erase the current universe and forge a new one devoid of spirit and emotion."
   },
   "black-white": {
@@ -28,6 +52,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon: Black & White",
     region: "Unova",
     seasons: 3,
+    type: "TV Series",
+    releaseYear: 2010,
+    thumbnail: "/images/series/black-white.jpg",
+    chronologicalOrder: 4,
+    episodeCount: 142,
+    mainCharacters: ["Ash", "Iris", "Cilan"],
+    featuredPokemon: ["Pikachu", "Axew", "Oshawott", "Snivy"],
+    villains: ["Team Rocket", "Team Plasma"],
     description: "Traveling to the distant Unova region, Ash finds himself in a land where classic Pokémon are entirely absent. Partnering with Iris, a wild and spirited Dragon-type prodigy, and Cilan, an eccentric Pokémon Connoisseur and Gym Leader, Ash faces a 'soft reset' of his journey, dealing with wildly unpredictable new species and a faster-paced adventure. The region is shadowed by the looming threat of Team Plasma, an organization that masquerades as an animal liberation front. This arc deeply explores the philosophical question of whether Pokémon should be kept in Poké Balls at all, culminating in clashes with N, a tragic anti-hero who can speak directly to the hearts of Pokémon."
   },
   "xy": {
@@ -35,6 +67,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon the Series: XY & XYZ",
     region: "Kalos",
     seasons: 3,
+    type: "TV Series",
+    releaseYear: 2013,
+    thumbnail: "/images/series/xy.jpg",
+    chronologicalOrder: 5,
+    episodeCount: 140,
+    mainCharacters: ["Ash", "Serena", "Clemont", "Bonnie"],
+    featuredPokemon: ["Pikachu", "Greninja", "Braixen", "Lucario"],
+    villains: ["Team Rocket", "Team Flare"],
     description: "A cinematic, high-octane era that pushes the animation and stakes to their absolute peak. Ash arrives in the Kalos region radiating confidence and battle-hardened competence. He is joined by Serena, a childhood friend harboring a deep crush who seeks her own path as a Performer; Clemont, an anxiety-prone genius inventor; and his adorable sister, Bonnie. This saga focuses heavily on the mysteries of Mega Evolution and the unique, legendary 'Ash-Greninja' phenomenon—a rare Bond Phenomenon that merges Ash's consciousness with his Pokémon during combat. The series concludes with a massive, region-wide war against Team Flare and Lysandre, who attempt to use the legendary Zygarde to enact a global genocide and 'beautify' the world."
   },
   "sun-moon": {
@@ -42,6 +82,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon: Sun & Moon",
     region: "Alola",
     seasons: 3,
+    type: "TV Series",
+    releaseYear: 2016,
+    thumbnail: "/images/series/sun-moon.jpg",
+    chronologicalOrder: 6,
+    episodeCount: 146,
+    mainCharacters: ["Ash", "Lillie", "Kiawe", "Mallow", "Lana", "Sophocles"],
+    featuredPokemon: ["Pikachu", "Rowlet", "Lycanroc", "Incineroar"],
+    villains: ["Team Rocket", "Team Skull", "Aether Foundation"],
     description: "A massive departure from the traditional traveling formula, Ash arrives in the tropical paradise of Alola and actually settles down, enrolling in the Pokémon School under the guidance of Professor Kukui. This era trades traditional gym battles for a deeply emotional, slice-of-life 'found family' narrative, blending absurd comedy with surprisingly heavy themes of grief, loss, and community. Ash masters the explosive Z-Move mechanics, tackles the cultural Island Challenge, and joins the Ultra Guardians to defend the region from extra-dimensional Ultra Beasts. It is here, after two decades of failure, that Ash finally shatters his ceiling and wins a regional League, becoming the first-ever Champion of Alola."
   },
   "journeys": {
@@ -49,6 +97,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon Journeys",
     region: "All Regions",
     seasons: 3,
+    type: "TV Series",
+    releaseYear: 2019,
+    thumbnail: "/images/series/journeys.jpg",
+    chronologicalOrder: 7,
+    episodeCount: 147,
+    mainCharacters: ["Ash", "Goh", "Chloe"],
+    featuredPokemon: ["Pikachu", "Lucario", "Gengar", "Cinderace"],
+    villains: ["Team Rocket"],
     description: "The culmination of a 25-year legacy. Instead of focusing on a single region, Ash is appointed as a research fellow for the Cerise Laboratory alongside Goh, a brilliant but socially isolated boy whose singular goal is to catch every Pokémon in existence—including the mythical Mew. Together, they globe-trot across all eight known regions. Ash enters the World Coronation Series, a global ranking system to determine the absolute strongest trainer on the planet. This saga brings back legendary companions, old rivals, and forgotten Pokémon, culminating in the Masters Eight Tournament. Here, Ash must battle the reigning regional Champions to finally achieve his dream and defeat the undefeated Monarch, Leon."
   },
   "horizons": {
@@ -56,6 +112,14 @@ export const TV_SERIES_REGISTRY: Record<string, TVSeries> = {
     title: "Pokémon Horizons: The Series",
     region: "Paldea and Beyond",
     seasons: 3,
+    type: "TV Series",
+    releaseYear: 2023,
+    thumbnail: "/images/series/horizons.jpg",
+    chronologicalOrder: 8,
+    episodeCount: 68,
+    mainCharacters: ["Liko", "Roy", "Friede"],
+    featuredPokemon: ["Sprigatito", "Fuecoco", "Captain Pikachu"],
+    villains: ["The Explorers"],
     description: "A brand-new epoch begins. Ash Ketchum’s journey has concluded, and the torch is passed to Liko, a timid but highly observant girl from Paldea partnered with Sprigatito, and Roy, an energetic boy from Kanto partnered with Fuecoco. Instead of traditional gym battles, the duo joins the Rising Volt Tacklers—a ragtag crew of adventurers traveling the skies aboard the airship Brave Asagi, led by Friede and the formidable Captain Pikachu. Pursued by a shadowy and dangerous organization known as the Explorers, Liko and Roy must unlock the secrets of an ancient, mysterious pendant and a cryptic, ancient Poké Ball that holds the key to the legendary Terapagos and the Six Heroes of Lucius."
   }
 };
