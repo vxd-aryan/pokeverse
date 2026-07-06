@@ -15,7 +15,7 @@ export default function SeriesDetailPage() {
 
  
 
-  const isWatched = watchedIds.includes(series.id);
+  const isWatched = series ? watchedIds.includes(series.id) : false;
 
   // Fallbacks: If your data model doesn't have these yet, we prevent crashes and show default data!
   const featuredPokemon = (series as any).featuredPokemon || ["Pikachu", "Regional Starters"];
