@@ -80,7 +80,7 @@ export default function TVSeriesPage() {
                 <div className="absolute top-0 left-0 w-full h-full shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] pointer-events-none"></div>
                 
                 <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-[10px] font-mono font-bold px-2 py-1 rounded border border-cyan-900/50 text-cyan-400 tracking-wider">
-                  EP: {series.episodesCount}
+                  EP: {series.episodeCount}
                 </span>
                 
                 {isWatched && (
