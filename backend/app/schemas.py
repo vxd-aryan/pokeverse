@@ -56,10 +56,9 @@ class QuizSubmit(BaseModel):
 
 
 # ─── TELEMETRY SCHEMAS FOR THE DAILY GAUNTLET ───
-
+# Change it to this:
 class DailyQuizSubmission(BaseModel):
-    # Removed user_id. The backend handles this via the Bearer token authorization header!
-    daily_correct: int = Field(..., ge=0, le=10, description="Score matching the 10-question matrix limit.")
+    daily_correct: int
     
 class LeaderboardUserResponse(BaseModel):
     """Maps global rankings to the live client leaderboard arranged by total Trainer XP."""

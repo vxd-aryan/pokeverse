@@ -194,12 +194,11 @@ def submit_daily_gauntlet(
     if not user:
         raise HTTPException(status_code=404, detail="Trainer not found in the Academy database.")
 
-    # 👇 1. ENFORCE CALENDAR LOCK (Bulletproof String Comparison)
+    # 🛡️ 1. ENFORCE CALENDAR LOCK (Checked FIRST)
     today = datetime.date.today()
     today_str = str(today)
     yesterday_str = str(today - datetime.timedelta(days=1))
     
-    # Safely convert database date to string (handles null/None as well)
     user_last_date_str = str(user.last_quiz_date) if user.last_quiz_date else None
     
     if user_last_date_str == today_str:
@@ -207,23 +206,29 @@ def submit_daily_gauntlet(
             status_code=400, 
             detail="Daily Gauntlet evaluation already recorded for today. Come back tomorrow!"
         )
+
+    # 🛑 2. MANUALLY VALIDATE SCORE (Handles frontend accumulation bugs cleanly)
+    score = getattr(payload, 'daily_correct', getattr(payload, 'score', 0))
+    if score > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Matrix mismatch: Submitted score exceeds maximum gauntlet parameters."
+        )
         
-    # 2. Daily Streak Logic
+    # 3. Daily Streak Logic
     if user_last_date_str == yesterday_str:
         user.daily_streak += 1
     else:
         user.daily_streak = 1
         
-    # 3. Update telemetry and XP
+    # 4. Update telemetry and XP
     user.last_quiz_date = today
-    
-    score = getattr(payload, 'daily_correct', getattr(payload, 'score', 0))
     user.daily_correct += score
     
     xp_gained = score * 50
     user.current_xp += xp_gained
 
-    # 4. Process structural sequential level-ups
+    # 5. Process structural sequential level-ups
     while user.current_xp >= (user.level * 100):
         user.current_xp -= (user.level * 100)
         user.level += 1
