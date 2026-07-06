@@ -16,6 +16,7 @@ export interface WatchEntry {
 export interface TVSeries extends WatchEntry {
   type: 'TV Series';
   episodeCount: number;
+  seasons: number;           // <-- ADD THIS EXACT LINE
   mainCharacters: string[];
   featuredPokemon: string[];
   villains: string[];
