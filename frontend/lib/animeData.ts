@@ -134,7 +134,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Driven by an intense existential crisis, the genetically engineered clone Mewtwo rebels against human exploitation and issues a fierce battle invitation to the world's strongest trainers on New Island. Ash must demonstrate that true strength comes from the choices a soul makes, not the circumstances of its birth.",
     featuredLegendary: "Mewtwo & Mew",
     relatedSeriesId: "indigo-league",
-    thumbnail: "/images/movies/mewtwo-strikes-back.jpg"
+    thumbnail: "/images/movies/mewtwo-strikes-back.jpg",
+    type: "Movie",
+    region: "Kanto"
   },
   "movie-2000": { 
     id: "movie-2000", 
@@ -145,7 +147,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "A reckless collector disrupts the natural order by capturing the legendary birds to awaken Lugia, triggering catastrophic climate anomalies. Prophesied as the Chosen One, Ash Ketchum must journey through the raging elemental storms of the Orange Archipelago to retrieve three mystical orbs and restore global balance.",
     featuredLegendary: "Lugia & Legendary Birds",
     relatedSeriesId: "orange-islands",
-    thumbnail: "/images/movies/movie-2000.jpg"
+    thumbnail: "/images/movies/movie-2000.jpg",
+    type: "Movie",
+    region: "Orange Islands"
   },
   "spell-of-unknown": { 
     id: "spell-of-unknown", 
@@ -156,7 +160,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "When a young girl's loneliness awakens the reality-warping psychic entities known as the Unown, Greenfield is encased in a surreal crystal barrier. To build her perfect family, an illusionary Entei kidnaps Ash's mother, forcing Ash to infiltrate the crystalline palace in a high-stakes rescue mission.",
     featuredLegendary: "Entei & Unown",
     relatedSeriesId: "johto-journeys",
-    thumbnail: "/images/movies/spell-of-unknown.jpg"
+    thumbnail: "/images/movies/spell-of-unknown.jpg",
+    type: "Movie",
+    region: "Johto"
   },
   "mewtwo-returns": { 
     id: "mewtwo-returns", 
@@ -167,7 +173,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Hidden away in the remote Mount Quena, Mewtwo and his fellow clones seek a peaceful existence away from humanity. However, Giovanni and Team Rocket discover their sanctuary, forcing Ash and his friends to help Mewtwo defend his newfound home and overcome his lingering distrust of humans.",
     featuredLegendary: "Mewtwo",
     relatedSeriesId: "johto-league-champions",
-    thumbnail: "/images/movies/mewtwo-returns.jpg"
+    thumbnail: "/images/movies/mewtwo-returns.jpg",
+    type: "Movie",
+    region: "Johto"
   },
   "celebi": { 
     id: "celebi", 
@@ -178,7 +186,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Pulled forty years forward through time while fleeing an aggressive hunter, a young boy named Sammy and the mythical Celebi materialize in the modern era. Ash must team up with Sammy and the legendary beast Suicune to save Celebi from a vicious Team Rocket marauder and his corrupting Dark Ball.",
     featuredLegendary: "Celebi & Suicune",
     relatedSeriesId: "johto-league-champions",
-    thumbnail: "/images/movies/celebi.jpg"
+    thumbnail: "/images/movies/celebi.jpg",
+    type: "Movie",
+    region: "Johto"
   },
   "heroes": { 
     id: "heroes", 
@@ -189,7 +199,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "In the beautiful water capital of Alto Mare, Ash and his friends encounter the secretive Eon Pokémon, Latias and Latios. When two cunning thieves attempt to steal the Soul Dew to activate a deadly ancient mechanism, Ash must race through the city's canals to prevent a catastrophic tidal wave.",
     featuredLegendary: "Latias & Latios",
     relatedSeriesId: "master-quest",
-    thumbnail: "/images/movies/heroes.jpg"
+    thumbnail: "/images/movies/heroes.jpg",
+    type: "Movie",
+    region: "Johto"
   },
   "jirachi": { 
     id: "jirachi", 
@@ -200,7 +212,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "The Millennium Comet only appears in the night sky once every thousand years. During its passing, the mythical wish-granting Pokémon Jirachi awakens. Ash, Max, and their friends must protect Jirachi from a rogue former Team Magma scientist who wishes to exploit its energy to resurrect an ancient terror.",
     featuredLegendary: "Jirachi & Groudon",
     relatedSeriesId: "advanced",
-    thumbnail: "/images/movies/jirachi.jpg"
+    thumbnail: "/images/movies/jirachi.jpg",
+    type: "Movie",
+    region: "Hoenn"
   },
   "deoxys": { 
     id: "deoxys", 
@@ -211,7 +225,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "A colossal meteorite crashes into Earth, bringing with it the alien Pokémon Deoxys. Four years later, Deoxys descends upon the high-tech LaRousse City seeking its lost companion, triggering a furious territorial battle with the ozone guardian Rayquaza that traps Ash and his friends in a city-wide lockdown.",
     featuredLegendary: "Deoxys & Rayquaza",
     relatedSeriesId: "advanced-challenge",
-    thumbnail: "/images/movies/deoxys.jpg"
+    thumbnail: "/images/movies/deoxys.jpg",
+    type: "Movie",
+    region: "Hoenn"
   },
   "lucario": { 
     id: "lucario", 
@@ -222,7 +238,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "An ancient Lucario is unexpectedly released from a mystical staff. Embittered by what it perceives as its master's historical betrayal, Lucario reluctantly guides Ash to the colossal Tree of Beginning to rescue Pikachu from Mew, leading to a heartbreaking revelation about self-sacrifice and Aura power.",
     featuredLegendary: "Mew & Regi Trio",
     relatedSeriesId: "advanced-battle",
-    thumbnail: "/images/movies/lucario.jpg"
+    thumbnail: "/images/movies/lucario.jpg",
+    type: "Movie",
+    region: "Kanto"
   },
   "mirage": { 
     id: "mirage", 
@@ -233,7 +251,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "In this 10th-anniversary special, Ash and his friends are invited by Dr. Yung to witness his new Mirage System, which can digitally construct flawless holographic Pokémon. When a mysterious Mirage Master hijacks the technology to create a terrifyingly powerful digital Mewtwo, Ash must intervene.",
     featuredLegendary: "Mirage Mewtwo",
     relatedSeriesId: "battle-frontier",
-    thumbnail: "/images/movies/mirage.jpg"
+    thumbnail: "/images/movies/mirage.jpg",
+    type: "Movie",
+    region: "Kanto"
   },
   "ranger": { 
     id: "ranger", 
@@ -244,7 +264,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Ash teams up with Pokémon Ranger Jack Walker to protect a rare Manaphy egg from an obsessed pirate captain. The group must escort the newly hatched Prince of the Sea to an ancient underwater temple before the pirate can seize the Sea Crown and rule the oceans.",
     featuredLegendary: "Manaphy & Kyogre",
     relatedSeriesId: "battle-frontier",
-    thumbnail: "/images/movies/ranger.jpg"
+    thumbnail: "/images/movies/ranger.jpg",
+    type: "Movie",
+    region: "Kanto"
   },
   "darkrai": { 
     id: "darkrai", 
@@ -255,7 +277,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Alamos Town becomes the collateral damage in a terrifying interdimensional clash between the deities of time and space, Dialga and Palkia. As the town begins to fade from existence, the misunderstood shadowy Pokémon Darkrai steps up to defend the beautiful gardens it calls home.",
     featuredLegendary: "Dialga, Palkia & Darkrai",
     relatedSeriesId: "diamond-and-pearl",
-    thumbnail: "/images/movies/darkrai.jpg"
+    thumbnail: "/images/movies/darkrai.jpg",
+    type: "Movie",
+    region: "Sinnoh"
   },
   "giratina": { 
     id: "giratina", 
@@ -266,7 +290,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Furious at the pollution leaking into its Reverse World, the renegade deity Giratina attacks Dialga. The conflict drags Ash, Dawn, and the gratitude Pokémon Shaymin into a bizarre alternate dimension, where they must stop an ambitious villain trying to steal Giratina's power.",
     featuredLegendary: "Giratina & Shaymin",
     relatedSeriesId: "battle-dimension",
-    thumbnail: "/images/movies/giratina.jpg"
+    thumbnail: "/images/movies/giratina.jpg",
+    type: "Movie",
+    region: "Sinnoh"
   },
   "arceus": { 
     id: "arceus", 
@@ -277,7 +303,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "The Alpha Pokémon Arceus awakens from a long slumber to cast judgment upon humanity for an ancient betrayal involving the Jewel of Life. Ash, Dawn, and Brock are sent back in time to uncover the truth of Michina Town's history and stop Arceus's unstoppable rampage.",
     featuredLegendary: "Arceus",
     relatedSeriesId: "galactic-battles",
-    thumbnail: "/images/movies/arceus.jpg"
+    thumbnail: "/images/movies/arceus.jpg",
+    type: "Movie",
+    region: "Sinnoh"
   },
   "zoroark": { 
     id: "zoroark", 
@@ -288,7 +316,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Crown City falls under chaos as the illusion fox Zoroark is blackmailed into terrorizing the populace by a corrupt businessman looking to capture the time-traveling Celebi. Ash and friends work alongside the playful Zorua to break the businessman's hold and clear Zoroark's name.",
     featuredLegendary: "Zoroark, Zorua & Legendary Beasts",
     relatedSeriesId: "sinnoh-league-victors",
-    thumbnail: "/images/movies/zoroark.jpg"
+    thumbnail: "/images/movies/zoroark.jpg",
+    type: "Movie",
+    region: "Sinnoh"
   },
   "victini": { 
     id: "victini", 
@@ -299,7 +329,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "In the town of Eindoak, a well-meaning descendant of the People of the Vale attempts to harness the power of the mythical Victini to restore his homeland. His actions inadvertently unleash chaotic dragon energy, forcing Ash to seek the legendary Zekrom to stop the destruction.",
     featuredLegendary: "Victini & Zekrom",
     relatedSeriesId: "black-and-white",
-    thumbnail: "/images/movies/victini.jpg"
+    thumbnail: "/images/movies/victini.jpg",
+    type: "Movie",
+    region: "Unova"
   },
   "kyurem": { 
     id: "kyurem", 
@@ -310,7 +342,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "The young apprentice Keldeo recklessly challenges the terrifying ice dragon Kyurem before completing its training. Defeated and fleeing in terror, Keldeo crashes into Ash and his friends, who must help the young fighter find its courage and save the captured Swords of Justice.",
     featuredLegendary: "Kyurem & Swords of Justice",
     relatedSeriesId: "rival-destinies",
-    thumbnail: "/images/movies/kyurem.jpg"
+    thumbnail: "/images/movies/kyurem.jpg",
+    type: "Movie",
+    region: "Unova"
   },
   "genesect": { 
     id: "genesect", 
@@ -321,7 +355,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "An army of ancient, mechanically enhanced Genesect descends upon New Tork City, fiercely claiming the urban center as their new nest. When their hostile takeover endangers the city's power grid, a new Mewtwo intervenes, leading to a high-speed clash of engineered titans.",
     featuredLegendary: "Genesect & Mewtwo",
     relatedSeriesId: "adventures-in-unova",
-    thumbnail: "/images/movies/genesect.jpg"
+    thumbnail: "/images/movies/genesect.jpg",
+    type: "Movie",
+    region: "Unova"
   },
   "diancie": { 
     id: "diancie", 
@@ -332,7 +368,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "The subterranean Diamond Domain is dying as its sacred Heart Diamond fades. The naive princess Diancie sets out to find the life-giving Xerneas to learn how to create a new diamond, but her journey awakens the terrifying destruction Pokémon, Yveltal.",
     featuredLegendary: "Diancie, Xerneas & Yveltal",
     relatedSeriesId: "xy",
-    thumbnail: "/images/movies/diancie.jpg"
+    thumbnail: "/images/movies/diancie.jpg",
+    type: "Movie",
+    region: "Kalos"
   },
   "hoopa": { 
     id: "hoopa", 
@@ -343,7 +381,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "Ash meets the mischievous Hoopa, a mythical Pokémon capable of summoning objects—and other Pokémon—through its magical rings. When a dark power that was sealed away decades ago breaches its containment, a colossal battle erupts involving multiple Legendary Pokémon across the desert city.",
     featuredLegendary: "Hoopa & Multiple Legendaries",
     relatedSeriesId: "kalos-quest",
-    thumbnail: "/images/movies/hoopa.jpg"
+    thumbnail: "/images/movies/hoopa.jpg",
+    type: "Movie",
+    region: "Kalos"
   },
   "volcanion": { 
     id: "volcanion", 
@@ -354,7 +394,9 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
     description: "A mysterious magnetic band suddenly tethers Ash to the mythical Volcanion, a gruff Pokémon who despises humans. Bound together, they must infiltrate the mechanical Azimuth Kingdom to rescue the man-made Pokémon Magearna from a corrupt minister plotting to weaponize her Soul-Heart.",
     featuredLegendary: "Volcanion & Magearna",
     relatedSeriesId: "xyz",
-    thumbnail: "/images/movies/volcanion.jpg"
+    thumbnail: "/images/movies/volcanion.jpg",
+    type: "Movie",
+    region: "Kalos"
   }
 };
 
