@@ -82,7 +82,7 @@ export default function SeriesDetailPage() {
           <div className="bg-gradient-to-br from-[#0b101a] to-[#080c14] border border-cyan-900/30 rounded-2xl p-6 md:p-8">
             <h3 className="text-sm font-bold text-cyan-100 mb-2 uppercase tracking-widest font-mono">Episode Sequence Details</h3>
             <p className="text-sm text-slate-400 mb-6">
-              This regional saga chronicles a calculated total sequence of <strong className="text-cyan-400">{series.episodesCount} episodes</strong>.
+              This regional saga chronicles a calculated total sequence of <strong className="text-cyan-400">{series.episodeCount} episodes</strong>.
             </p>
             
             <div className="flex flex-wrap gap-4">
