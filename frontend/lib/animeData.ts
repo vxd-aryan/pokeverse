@@ -400,7 +400,7 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
   }
 };
 
-export const CHRONOLOGICAL_WATCH_ORDER: WatchEntry[] = [
+export const CHRONOLOGICAL_WATCH_ORDER: Omit<WatchEntry, "id" | "releaseYear" | "thumbnail">[] = [
   {
     chronologicalOrder: 1,
     type: "TV Series",
