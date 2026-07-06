@@ -403,504 +403,504 @@ export const MOVIE_REGISTRY: Record<string, Movie> = {
 export const CHRONOLOGICAL_WATCH_ORDER: WatchEntry[] = [
   {
     chronologicalOrder: 1,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 1: INDIGO LEAGUE (Ep 1-69)",
     region: "Kanto",
     description: "Ash Ketchum begins his journey with Pikachu. Winning Gym Badges turns out to be tough, but he's got Brock, Misty, and new Pokémon friends by his side."
   },
   {
     chronologicalOrder: 2,
-    type: "movie",
+    type: "Movie",
     title: "THE FIRST MOVIE: MEWTWO STRIKES BACK (1998)",
     region: "Kanto",
     description: "Scientists genetically create a new Pokémon, Mewtwo, but the results are horrific and disastrous."
   },
   {
     chronologicalOrder: 3,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 1: INDIGO LEAGUE (Ep 70-82)",
     region: "Kanto",
     description: "The exciting conclusion of Ash’s journey in the Pokémon League, setting the stage for new adventures."
   },
   {
     chronologicalOrder: 4,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 2: ORANGE ISLANDS (Ep 1-24)",
     region: "Orange Islands",
     description: "Ash journeys to the Orange Islands. Brock stays with Professor Ivy, leaving Ash and Misty to travel with intrepid Pokémon watcher Tracey Sketchit."
   },
   {
     chronologicalOrder: 5,
-    type: "movie",
+    type: "Movie",
     title: "THE MOVIE 2000 (1999)",
     region: "Orange Islands",
     description: "Ash must gather the three spheres of fire, ice, and lightning in order to restore balance to the Orange Islands."
   },
   {
     chronologicalOrder: 6,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 2: ORANGE ISLANDS (Ep 25-36)",
     region: "Orange Islands",
     description: "Focuses on Ash’s growth as a Trainer with standalone adventures, setting up future storylines for Johto."
   },
   {
     chronologicalOrder: 7,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 3: THE JOHTO JOURNEYS (Ep 1-38)",
     region: "Johto",
     description: "Ash and Misty reunite with Brock and set out on the next stage of their Pokémon journey—the Johto region!"
   },
   {
     chronologicalOrder: 8,
-    type: "movie",
+    type: "Movie",
     title: "SPELL OF THE UNOWN (2000)",
     region: "Johto",
     description: "In Greenfield, a young, lonely girl’s dreams and wishes are brought into reality by a collective of reality-warping Pokémon."
   },
   {
     chronologicalOrder: 9,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 3: THE JOHTO JOURNEYS (Ep 39-41)",
     region: "Johto",
     description: "Introduces a variety of new Johto Pokémon and focuses on character development and Team Rocket's scams."
   },
   {
     chronologicalOrder: 10,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 4: JOHTO LEAGUE CHAMPIONS (Ep 1-21)",
     region: "Johto",
     description: "Ash, Misty, and Brock face exciting new adventures, meet old friends, and tackle three more Gyms."
   },
   {
     chronologicalOrder: 11,
-    type: "movie",
+    type: "Movie",
     title: "MEWTWO RETURNS (2000)",
     region: "Johto",
     description: "Team Rocket tracks down Mewtwo in Johto. Ash and company meet Giovanni for the first time."
   },
   {
     chronologicalOrder: 12,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 4: JOHTO LEAGUE CHAMPIONS (Ep 22-48)",
     region: "Johto",
     description: "Deepens Ash’s journey with Gym Battles, competitions, and encounters with rare and legendary Pokémon."
   },
   {
     chronologicalOrder: 13,
-    type: "movie",
+    type: "Movie",
     title: "4EVER CELEBI: VOICE OF THE FOREST (2001)",
     region: "Johto",
     description: "Ash must stop a hunter who forces the mythical Pokémon Celebi to help him destroy a forest."
   },
   {
     chronologicalOrder: 14,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 4: JOHTO LEAGUE CHAMPIONS (Ep 49-52)",
     region: "Johto",
     description: "The gang make their way to Olivine City for Ash’s next Gym challenge."
   },
   {
     chronologicalOrder: 15,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 5: MASTER QUEST (Ep 1-47)",
     region: "Johto",
     description: "The Whirl Cup Competition calls! Ash moves on to the Silver Conference to finally take on his old rival, Gary."
   },
   {
     chronologicalOrder: 16,
-    type: "movie",
+    type: "Movie",
     title: "POKÉMON HEROES (2002)",
     region: "Johto",
     description: "Two thieves take control of an ancient weapon designed to defend the canal city of Altomare."
   },
   {
     chronologicalOrder: 17,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 5: MASTER QUEST (Ep 48-65)",
     region: "Johto",
     description: "Brings Ash’s Johto journey to a conclusion with high-stakes battles and emotional farewells."
   },
   {
     chronologicalOrder: 18,
-    type: "series",
+    type: "TV Series",
     title: "POKÉMON CHRONICLES: MINI SERIES (Ep 1-22)",
     region: "Various",
     description: "Stories focusing on researchers, Gym Leaders, Team Rocket members, and other familiar faces."
   },
   {
     chronologicalOrder: 19,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 6: ADVANCED (Ep 1-35)",
     region: "Hoenn",
     description: "Ash heads to the Hoenn region, making the acquaintance of May and her brother Max alongside Brock."
   },
   {
     chronologicalOrder: 20,
-    type: "movie",
+    type: "Movie",
     title: "JIRACHI: WISH MAKER (2003)",
     region: "Hoenn",
     description: "A magician attempts to use the power of the Millennium Comet to awaken the legendary Pokémon Groudon."
   },
   {
     chronologicalOrder: 21,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 6: ADVANCED (Ep 36-40)",
     region: "Hoenn",
     description: "Introduces the rivalry between Team Magma and Team Aqua."
   },
   {
     chronologicalOrder: 22,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 7: ADVANCED CHALLENGE (Ep 1-45)",
     region: "Hoenn",
     description: "Ash battles for three more Gym Badges while May wins her first three Contest Ribbons."
   },
   {
     chronologicalOrder: 23,
-    type: "movie",
+    type: "Movie",
     title: "DESTINY DEOXYS (2004)",
     region: "Hoenn",
     description: "A comet bearing a deadly creature crash-lands onto Earth, terrorizing a high-tech city."
   },
   {
     chronologicalOrder: 24,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 7: ADVANCED CHALLENGE (Ep 46-52)",
     region: "Hoenn",
     description: "Balances battles, contests, and new friendships as Ash and his friends grow as trainers."
   },
   {
     chronologicalOrder: 25,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 8: ADVANCED BATTLE (Ep 1-43)",
     region: "Hoenn",
     description: "Ash secures a spot in the Hoenn League Championships, and May faces epic showdowns in the Grand Festival."
   },
   {
     chronologicalOrder: 26,
-    type: "movie",
+    type: "Movie",
     title: "LUCARIO AND THE MYSTERY OF MEW (2005)",
     region: "Kanto",
     description: "Ash and friends are guided to the Tree of Beginnings by Lucario to rescue Pikachu from Mew."
   },
   {
     chronologicalOrder: 27,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 8: ADVANCED BATTLE (Ep 44-52)",
     region: "Hoenn",
     description: "Culminates with the Hoenn League competition where Ash reaches the Top 8."
   },
   {
     chronologicalOrder: 28,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 9: BATTLE FRONTIER (Ep 1-5)",
     region: "Kanto",
     description: "Ash and Brock find surprises in their home region of Kanto, dealing with a Pokémon Ranger and Legendary Pokémon."
   },
   {
     chronologicalOrder: 29,
-    type: "movie",
+    type: "Movie",
     title: "THE MASTERMIND OF MIRAGE POKÉMON (2006)",
     region: "Kanto",
     description: "Ash visits Dr. Yung's laboratory to witness the creation of incredibly powerful Mirage-Pokémon."
   },
   {
     chronologicalOrder: 30,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 9: BATTLE FRONTIER (Ep 6-38)",
     region: "Kanto",
     description: "May blazes a trail to the Kanto Grand Festival while Ash seeks out the hidden facilities of the Battle Frontier."
   },
   {
     chronologicalOrder: 31,
-    type: "movie",
+    type: "Movie",
     title: "RANGER AND THE TEMPLE OF THE SEA (2006)",
     region: "Unknown",
     description: "Our heroes must protect the Prince of the Sea, Manaphy, from the evil pirate Phantom."
   },
   {
     chronologicalOrder: 32,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 9: BATTLE FRONTIER (Ep 39-47)",
     region: "Kanto",
     description: "Ash’s Frontier Battle journey comes to a close before an unofficial Pokémon Contest in Terracotta Town."
   },
   {
     chronologicalOrder: 33,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 10: DIAMOND AND PEARL (Ep 1-39)",
     region: "Sinnoh",
     description: "Ash heads to the Sinnoh region, teaming up with Brock and novice Coordinator Dawn."
   },
   {
     chronologicalOrder: 34,
-    type: "movie",
+    type: "Movie",
     title: "THE RISE OF DARKRAI (2007)",
     region: "Sinnoh",
     description: "An idyllic town is thrown into chaos when Dialga and Palkia battle, with Darkrai being their only hope."
   },
   {
     chronologicalOrder: 35,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 10: DIAMOND AND PEARL (Ep 40-52)",
     region: "Sinnoh",
     description: "Ash and Dawn struggle with their paths but make new friends, gaining Pokémon like Turtwig and Piplup."
   },
   {
     chronologicalOrder: 36,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 11: DP BATTLE DIMENSION (Ep 1-34)",
     region: "Sinnoh",
     description: "Ash works on Gym Badges while Dawn recovers from Contest defeats, eventually attending the Pokémon Summer Academy."
   },
   {
     chronologicalOrder: 37,
-    type: "movie",
+    type: "Movie",
     title: "GIRATINA AND THE SKY WARRIOR (2008)",
     region: "Sinnoh",
     description: "Ash must stop a mysterious stranger from using Giratina's parallel dimension powers for evil."
   },
   {
     chronologicalOrder: 38,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 11: DP BATTLE DIMENSION (Ep 35-52)",
     region: "Sinnoh",
     description: "New tactics help our heroes succeed against Pokémon Hunter J and the emerging threat of Team Galactic."
   },
   {
     chronologicalOrder: 39,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 12: DP GALACTIC BATTLES (Ep 1-31)",
     region: "Sinnoh",
     description: "The menace of Team Galactic looms over Sinnoh as Ash and Dawn get caught in their schemes."
   },
   {
     chronologicalOrder: 40,
-    type: "movie",
+    type: "Movie",
     title: "ARCEUS AND THE JEWEL OF LIFE (2009)",
     region: "Sinnoh",
     description: "Arceus comes to pass judgement on humanity, sending Ash and friends back in time to reverse the events."
   },
   {
     chronologicalOrder: 41,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 12: DP GALACTIC BATTLES (Ep 32-53)",
     region: "Sinnoh",
     description: "Ash’s ongoing rivalry with Paul finally comes to a head in a full 6-on-6 ultimate test of training styles!"
   },
   {
     chronologicalOrder: 42,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 13: DP SINNOH LEAGUE VICTORS (Ep 1-21)",
     region: "Sinnoh",
     description: "Ash, Dawn, and Brock continue traveling Sinnoh facing challenges, battles, and Team Rocket."
   },
   {
     chronologicalOrder: 43,
-    type: "movie",
+    type: "Movie",
     title: "ZOROARK: MASTER OF ILLUSIONS (2010)",
     region: "Sinnoh",
     description: "A media mogul seeks to capture Celebi using the shape-shifting Pokémon Zoroark."
   },
   {
     chronologicalOrder: 44,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 13: DP SINNOH LEAGUE VICTORS (Ep 22-34)",
     region: "Sinnoh",
     description: "Ash focuses on qualifying for the Sinnoh League while Dawn trains for her final Contest Ribbon."
   },
   {
     chronologicalOrder: 45,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 14: BLACK AND WHITE (Ep 1-39)",
     region: "Unova",
     description: "Ash discovers new Pokémon in the Unova region, traveling with new friends Iris and Cilan."
   },
   {
     chronologicalOrder: 46,
-    type: "movie",
+    type: "Movie",
     title: "WHITE: VICTINI AND ZEKROM (2011)",
     region: "Unova",
     description: "The greatest adventure in Pokémon history approaches as Ash encounters Victini and Zekrom."
   },
   {
     chronologicalOrder: 47,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 14: BLACK AND WHITE (Ep 40-48)",
     region: "Unova",
     description: "Ash's quest to become a Pokémon Master gets even tougher in Unova."
   },
   {
     chronologicalOrder: 48,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 15: BW RIVAL DESTINIES (Ep 1-49)",
     region: "Unova",
     description: "Ash faces the ultimate battle challenge against Alder, the Champion Master of Unova."
   },
   {
     chronologicalOrder: 49,
-    type: "movie",
+    type: "Movie",
     title: "KYUREM VS. THE SWORD OF JUSTICE (2012)",
     region: "Unova",
     description: "Keldeo enrages Kyurem. Ash and Pikachu help Keldeo become a sword of justice."
   },
   {
     chronologicalOrder: 50,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 16: BW ADVENTURES IN UNOVA (Ep 1-25)",
     region: "Unova",
     description: "With eight Gym badges in hand, Ash takes on the Unova League."
   },
   {
     chronologicalOrder: 51,
-    type: "movie",
+    type: "Movie",
     title: "GENESECT AND THE LEGEND AWAKENED (2013)",
     region: "Unova",
     description: "Ash, Pikachu, and friends must stop Mewtwo and a group of Genesect from destroying the city."
   },
   {
     chronologicalOrder: 52,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 16: BW ADVENTURES IN UNOVA (Ep 26-45)",
     region: "Unova",
     description: "Iris visits the Village of Dragons to connect with her stubborn Dragonite."
   },
   {
     chronologicalOrder: 53,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 17: XY (Ep 1-37)",
     region: "Kalos",
     description: "Ash sets off in Kalos, joined by inventor Clemont, Bonnie, and new Trainer Serena."
   },
   {
     chronologicalOrder: 54,
-    type: "movie",
+    type: "Movie",
     title: "DIANCIE AND THE COCOON OF DESTRUCTION (2014)",
     region: "Kalos",
     description: "Ash and friends help Diancie find Xerneas to create a heart diamond and save her home."
   },
   {
     chronologicalOrder: 55,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 17: XY (Ep 38-48)",
     region: "Kalos",
     description: "Exploring the region, meeting new Pokémon, and looking into a fascinating new Pokémon mystery."
   },
   {
     chronologicalOrder: 56,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 18: XY KALOS QUEST (Ep 1-33)",
     region: "Kalos",
     description: "Ash continues his quest to win eight Gym badges to enter the Kalos League."
   },
   {
     chronologicalOrder: 57,
-    type: "movie",
+    type: "Movie",
     title: "HOOPA AND THE CLASH OF AGES (2015)",
     region: "Kalos",
     description: "The crew meets Hoopa, a mythical Pokémon whose true unbound power is terrifying."
   },
   {
     chronologicalOrder: 58,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 18: XY KALOS QUEST (Ep 34-45)",
     region: "Kalos",
     description: "Serena takes on the Pokémon Showcase world while Clemont continues to create inventions."
   },
   {
     chronologicalOrder: 59,
-    type: "movie",
+    type: "Movie",
     title: "VOLCANION AND THE MECHANICAL MARVEL (2016)",
     region: "Kalos",
     description: "Volcanion must accept Ash’s help to rescue the Azoth Kingdom."
   },
   {
     chronologicalOrder: 60,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 19: XYZ (Ep 1-47)",
     region: "Kalos",
     description: "Team Flare hunts Zygarde, Alain searches for Mega Evolution, and Ash's Frogadier reaches new heights."
   },
   {
     chronologicalOrder: 61,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 20: SUN & MOON (Ep 1-43)",
     region: "Alola",
     description: "Ash enters the Pokémon School in tropical Alola, meeting Lillie, Kiawe, Lana, Mallow, and Sophocles."
   },
   {
     chronologicalOrder: 62,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 21: SM ULTRA ADVENTURES (Ep 1-49)",
     region: "Alola",
     description: "Ash explores the Aether Foundation and protects people and Pokémon from mysterious Ultra Beasts."
   },
   {
     chronologicalOrder: 63,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 22: SM ULTRA LEGENDS (Ep 1-54)",
     region: "Alola",
     description: "The Ultra Guardians protect Wela Volcano and Professor Kukui starts the Alola Pokémon League."
   },
   {
     chronologicalOrder: 64,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 23: JOURNEYS (Ep 1-48)",
     region: "All Regions",
     description: "Ash and Goh become research fellows for Cerise Laboratory, traveling the world to study Pokémon."
   },
   {
     chronologicalOrder: 65,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 24: MASTER JOURNEYS (Ep 1-42)",
     region: "All Regions",
     description: "Ash climbs the World Coronation Series rankings while Goh attempts to catch Mew."
   },
   {
     chronologicalOrder: 66,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 25: ULTIMATE JOURNEYS (Ep 1-4)",
     region: "All Regions",
     description: "Intensive training for Ash as the World Coronation Series heats up. Goh embarks on Project Mew."
   },
   {
     chronologicalOrder: 67,
-    type: "series",
+    type: "TV Series",
     title: "ARCEUS CHRONICLES (ULTIMATE JOURNEYS Ep 1-4 Arc)",
     region: "Sinnoh",
     description: "Investigating Arceus, Ash, Goh, and Dawn uncover a plot by Team Galactic."
   },
   {
     chronologicalOrder: 68,
-    type: "series",
+    type: "TV Series",
     title: "SEASON 25: ULTIMATE JOURNEYS (Ep 5-54)",
     region: "All Regions",
     description: "The incredible climax of the World Coronation Series as Ash Ketchum fights for the title of Monarch."
   },
   {
     chronologicalOrder: 69,
-    type: "series",
+    type: "TV Series",
     title: "TO BE A POKÉMON MASTER (Ep 1-11)",
     region: "Various",
     description: "A special 11-episode epilogue honoring Ash's 25-year journey, journeying with Misty and Brock one last time."
   },
   {
     chronologicalOrder: 70,
-    type: "series",
+    type: "TV Series",
     title: "HORIZONS: SEASON 1 (Ep 1-45)",
     region: "Paldea",
     description: "Liko and Roy embark on a globe-spanning adventure aboard the Brave Asagi with the Rising Volt Tacklers."
   },
   {
     chronologicalOrder: 71,
-    type: "series",
+    type: "TV Series",
     title: "HORIZONS: SEASON 2 - THE SEARCH FOR LAQUA (Ep 1-44)",
     region: "Paldea",
     description: "Liko and Roy hone their Terastallization skills, challenge Gym Leaders, and race the Explorers to Laqua."
   },
   {
     chronologicalOrder: 72,
-    type: "series",
+    type: "TV Series",
     title: "HORIZONS: SEASON 3 - RISING HOPE",
     region: "Various",
     description: "A year after Laqua, the team rebuilds the Rising Volt Tacklers to chase a mysterious pink mist and fight the Explorers."
