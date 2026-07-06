@@ -194,11 +194,12 @@ def submit_daily_gauntlet(
     if not user:
         raise HTTPException(status_code=404, detail="Trainer not found in the Academy database.")
 
-    # 🛡️ 1. ENFORCE CALENDAR LOCK (Checked FIRST)
+    # 🛡️ 1. ENFORCE CALENDAR LOCK (Evaluated first to bypass Pydantic errors)
     today = datetime.date.today()
     today_str = str(today)
     yesterday_str = str(today - datetime.timedelta(days=1))
     
+    # Safely convert database date to string for rigorous evaluation
     user_last_date_str = str(user.last_quiz_date) if user.last_quiz_date else None
     
     if user_last_date_str == today_str:
@@ -207,7 +208,7 @@ def submit_daily_gauntlet(
             detail="Daily Gauntlet evaluation already recorded for today. Come back tomorrow!"
         )
 
-    # 🛑 2. MANUALLY VALIDATE SCORE (Handles frontend accumulation bugs cleanly)
+    # 🛑 2. MANUALLY VALIDATE SCORE LIMITS (Catches frontend cumulative retry metrics)
     score = getattr(payload, 'daily_correct', getattr(payload, 'score', 0))
     if score > 10:
         raise HTTPException(
@@ -239,7 +240,6 @@ def submit_daily_gauntlet(
     db.refresh(user)
 
     return user
-
 
 # --- PRACTICE MODULE ROUTES ---
 
