@@ -64,7 +64,7 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
     const token = localStorage.getItem('trainer_token');
     
     try {
-      const res = await fetch(`http://localhost:8000/api/users/me`, { 
+      const res = await fetch(`https://pokeverse-backend-0o6t.onrender.com/api/users/me`, { 
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -151,7 +151,7 @@ export default function RootLayout({
     
     // If a token exists but the memory state (user) is empty (e.g. after a refresh)
     if (token && !user) {
-      fetch('http://localhost:8000/api/users/me', {
+      fetch('https://pokeverse-backend-0o6t.onrender.com/api/users/me', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

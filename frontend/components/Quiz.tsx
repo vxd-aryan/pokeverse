@@ -24,7 +24,7 @@ export default function Quiz() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://pokeverse-backend-0o6t.onrender.com';
   const fetchQuiz = useCallback(async () => {
     setLoading(true);
     setSelectedAnswer(null);

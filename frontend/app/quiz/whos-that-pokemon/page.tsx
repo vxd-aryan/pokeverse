@@ -32,7 +32,7 @@ export default function WhosThatPokemon() {
     setCorrectAnswer(null);
     setError("");
     try {
-      const res = await fetch('http://localhost:8000/api/quiz/whos-that');
+      const res = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/whos-that');
       if (!res.ok) throw new Error(`API returned status ${res.status}`);
       const data = await res.json();
       setQuiz(data);
@@ -63,7 +63,7 @@ export default function WhosThatPokemon() {
       const isCorrect = formatPokemonName(guess) === actualName;
 
       if (isCorrect && token) {
-        const xpRes = await fetch('http://localhost:8000/api/quiz/practice/submit', {
+        const xpRes = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/practice/submit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

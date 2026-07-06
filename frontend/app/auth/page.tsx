@@ -29,8 +29,8 @@ export default function AuthPage() {
       localStorage.removeItem('trainer_token');
 
       const endpoint = isLogin 
-        ? 'http://localhost:8000/api/auth/login' 
-        : 'http://localhost:8000/api/auth/register';
+        ? 'https://pokeverse-backend-0o6t.onrender.com/api/auth/login' 
+        : 'https://pokeverse-backend-0o6t.onrender.com/api/auth/register';
         
       const payload = isLogin 
         ? { email, password } 

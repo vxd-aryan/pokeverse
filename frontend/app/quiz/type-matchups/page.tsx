@@ -25,7 +25,7 @@ export default function TypeMatchups() {
     setSelected(null);
     setError("");
     try {
-      const res = await fetch('http://localhost:8000/api/quiz/type-match');
+      const res = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/type-match');
       if (!res.ok) throw new Error(`API standard returned status ${res.status}`);
       const data = await res.json();
       setQuiz(data);
@@ -50,7 +50,7 @@ export default function TypeMatchups() {
 
     if (isCorrect && token) {
       try {
-        const xpRes = await fetch('http://localhost:8000/api/quiz/practice/submit', {
+        const xpRes = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/practice/submit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

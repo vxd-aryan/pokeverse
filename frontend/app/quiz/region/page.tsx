@@ -23,7 +23,7 @@ export default function RegionMasteryQuiz() {
     setSelected(null);
     setCorrectAnswer(null);
     try {
-      const res = await fetch('http://localhost:8000/api/quiz/region');
+      const res = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/region');
       const data = await res.json();
       setQuiz(data);
       
@@ -57,7 +57,7 @@ export default function RegionMasteryQuiz() {
 
     if (isCorrect) {
       try {
-        const xpRes = await fetch('http://localhost:8000/api/quiz/practice/submit', {
+        const xpRes = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/practice/submit', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

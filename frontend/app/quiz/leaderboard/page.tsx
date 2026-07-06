@@ -30,7 +30,7 @@ export default function LeaderboardPage() {
         }
 
         // Updated to match the backend route from your FastAPI engine
-        const response = await fetch('http://localhost:8000/api/users/leaderboard', {
+        const response = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/users/leaderboard', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
