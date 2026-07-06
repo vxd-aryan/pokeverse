@@ -1,0 +1,44 @@
+/* If your project uses Tailwind v4 (default for Next.js 16), keep this line: */
+@import "tailwindcss";
+
+/* If your project template originally used the v3 syntax, uncomment these instead:
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+*/
+
+/* Native CSS for the body prevents Turbopack compile-order errors */
+body {
+  background-color: #0f172a; /* Equivalent to bg-slate-900 */
+  color: #f1f5f9;            /* Equivalent to text-slate-100 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom animated striping for the XP bar */
+.bg-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+}
+
+.animate-stripes {
+  animation: move-stripes 1s linear infinite;
+}
+
+@keyframes move-stripes {
+  from {
+    background-position: 1rem 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
