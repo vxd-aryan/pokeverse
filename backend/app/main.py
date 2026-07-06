@@ -20,7 +20,7 @@ app = FastAPI(title="PokéVerse Academy Sync Matrix")
 
 # Dynamically read allowed frontend origins from environment variables.
 # Defaults to localhost for your local development environment.
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://pokeverse-seven.vercel.app")
 origins = [origin.strip() for origin in allowed_origins_env.split(",")]
 
 app.add_middleware(
