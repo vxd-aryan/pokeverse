@@ -21,6 +21,15 @@ export default function SeriesDetailPage() {
   const featuredPokemon = (series as any).featuredPokemon || ["Pikachu", "Regional Starters"];
   const villains = (series as any).villains || ["Team Rocket"];
 
+  // If the series doesn't exist, stop here and show an error UI
+  if (!series) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <h1 className="text-2xl font-bold">404 - Series Not Found</h1>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#080c14] animate-in fade-in duration-500 font-sans pb-12">
       {/* Hero Banner Area */}
