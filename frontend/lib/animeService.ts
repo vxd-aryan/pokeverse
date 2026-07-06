@@ -5,10 +5,9 @@ import { WatchEntry, TVSeries, Movie } from '@/types/anime';
 /**
  * Fetches the master chronological order for the home landing dashboard
  */
-export function getChronologicalWatchOrder(): WatchEntry[] {
+export function getChronologicalWatchOrder(): Omit<WatchEntry, "id" | "releaseYear" | "thumbnail">[] {
   return CHRONOLOGICAL_WATCH_ORDER.sort((a, b) => a.chronologicalOrder - b.chronologicalOrder);
 }
-
 /**
  * Fetches a list of all available TV Series
  */
