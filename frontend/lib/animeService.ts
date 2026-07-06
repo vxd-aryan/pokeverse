@@ -39,9 +39,11 @@ export function getMovieById(id: string): Movie | undefined {
 /**
  * Global search function querying across strings inside the repository arrays
  */
-export function globalSearchLibrary(query: string): WatchEntry[] {
-  const lowercaseQuery = query.toLowerCase();
-  if (!lowercaseQuery) return CHRONOLOGICAL_WATCH_ORDER;
+// 👇 UPDATE THE RETURN TYPE HERE 👇
+export function globalSearchLibrary(query: string): Omit<WatchEntry, "id" | "releaseYear" | "thumbnail">[] {
+   const lowercaseQuery = query.toLowerCase();
+   if (!lowercaseQuery) return CHRONOLOGICAL_WATCH_ORDER;
+   // ...
 
   return CHRONOLOGICAL_WATCH_ORDER.filter(item => 
     item.title.toLowerCase().includes(lowercaseQuery) || 
