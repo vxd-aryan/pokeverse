@@ -16,7 +16,7 @@ const REGIONS = [
 ];
 
 export default function Quiz() {
-  const { user, updateUser } = useUserStore();
+  const { user, setUser } = useUserStore();
   
   const [region, setRegion] = useState<string>('kanto');
   const [question, setQuestion] = useState<QuizQuestion | null>(null);
@@ -24,7 +24,7 @@ export default function Quiz() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const fetchQuiz = useCallback(async () => {
     setLoading(true);
     setSelectedAnswer(null);
@@ -33,7 +33,7 @@ export default function Quiz() {
     try {
       const userId = user?.id || 1;
       // 1. Fetch filtered regional quiz data from our FastAPI backend
-      const res = await fetch(`http://localhost:8000/api/quiz/daily?region=${region}&user_id=${userId}`);
+      const res = await fetch(`${API_URL}/api/quiz/daily?region=${region}&user_id=${userId}`);
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -69,7 +69,7 @@ export default function Quiz() {
     const isCorrect = guess === correctName;
 
     try {
-      const res = await fetch('http://localhost:8000/api/quiz/submit', {
+    const res = await fetch(`${API_URL}/api/quiz/submit`,{
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,7 +93,7 @@ export default function Quiz() {
         }
 
         // Merge the backend's XP/Level updates with our updated frontend ID list
-        updateUser({
+        setUser({
           ...data.user,
           guessed_pokemon: updatedCaughtList
         });
