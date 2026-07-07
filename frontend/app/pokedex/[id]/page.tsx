@@ -12,13 +12,85 @@ const TYPE_COLORS: Record<string, string> = {
   steel: '#B8B8D0', fairy: '#EE99AC',
 };
 
+// --- EVOLUTION HELPERS ---
+
+// Turns a snake-case API string like "water-stone" into "Water Stone"
+function formatApiName(name?: string) {
+  if (!name) return '';
+  return name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// Describes a single evolution_details entry in plain English
+function describeEvolutionDetail(detail: any): string {
+  if (!detail) return '';
+  const trigger = detail.trigger?.name;
+  const parts: string[] = [];
+
+  if (trigger === 'level-up') {
+    if (detail.min_level) parts.push(`Level ${detail.min_level}`);
+    if (detail.min_happiness) parts.push(`Friendship ${detail.min_happiness}+`);
+    if (detail.min_beauty) parts.push(`Beauty ${detail.min_beauty}+`);
+    if (detail.min_affection) parts.push(`Affection ${detail.min_affection}+`);
+    if (detail.time_of_day) parts.push(`${formatApiName(detail.time_of_day)}`);
+    if (detail.known_move) parts.push(`Knows ${formatApiName(detail.known_move.name)}`);
+    if (detail.known_move_type) parts.push(`Knows a ${formatApiName(detail.known_move_type.name)} move`);
+    if (detail.held_item) parts.push(`Holding ${formatApiName(detail.held_item.name)}`);
+    if (detail.location) parts.push(`At ${formatApiName(detail.location.name)}`);
+    if (detail.needs_overworld_rain) parts.push('While raining');
+    if (detail.party_species) parts.push(`With ${formatApiName(detail.party_species.name)} in party`);
+    if (detail.party_type) parts.push(`With a ${formatApiName(detail.party_type.name)} type in party`);
+    if (detail.relative_physical_stats === 1) parts.push('Attack > Defense');
+    if (detail.relative_physical_stats === -1) parts.push('Defense > Attack');
+    if (detail.relative_physical_stats === 0) parts.push('Attack = Defense');
+    if (detail.trade_species) parts.push(`Trade for ${formatApiName(detail.trade_species.name)}`);
+    if (detail.turn_upside_down) parts.push('Turn device upside down');
+    if (parts.length === 0) parts.push('Level up');
+  } else if (trigger === 'trade') {
+    parts.push('Trade');
+    if (detail.held_item) parts.push(`holding ${formatApiName(detail.held_item.name)}`);
+  } else if (trigger === 'use-item') {
+    parts.push(`Use ${formatApiName(detail.item?.name)}`);
+  } else if (trigger === 'shed') {
+    parts.push('Empty party slot + spare Poké Ball');
+  } else if (trigger) {
+    parts.push(formatApiName(trigger));
+  }
+
+  return parts.join(' · ');
+}
+
+// A node can have multiple alternative evolution_details (e.g. Tyrogue's 3 branches
+// each list one condition) — join alternates with "or"
+function describeEvolutionMethods(details: any[]): string {
+  if (!details || details.length === 0) return 'Unknown method';
+  const unique = Array.from(new Set(details.map(describeEvolutionDetail).filter(Boolean)));
+  return unique.join('  or  ');
+}
+
+type EvoNode = {
+  id: string;
+  name: string;
+  evolutionDetails: any[];
+  children: EvoNode[];
+};
+
+function parseEvoNode(node: any): EvoNode {
+  const id = node.species.url.split('/').filter(Boolean).pop();
+  return {
+    id,
+    name: node.species.name,
+    evolutionDetails: node.evolution_details || [],
+    children: (node.evolves_to || []).map(parseEvoNode),
+  };
+}
+
 export default function PokemonProfilePage() {
   const { id } = useParams();
 
   const [pokemon, setPokemon] = useState<any>(null);
   const [species, setSpecies] = useState<any>(null);
   const [encounters, setEncounters] = useState<any[]>([]);
-  const [evolutionChain, setEvolutionChain] = useState<any[]>([]);
+  const [evolutionTree, setEvolutionTree] = useState<EvoNode | null>(null);
 
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(true);
@@ -41,23 +113,12 @@ export default function PokemonProfilePage() {
         const encData = await encRes.json();
         setEncounters(encData);
 
-        // 4. Fetch Evolution Chain
+        // 4. Fetch Evolution Chain (kept as a real tree so branching evolutions
+        // like Eevee or Tyrogue render correctly instead of a flattened list)
         if (speciesData.evolution_chain?.url) {
           const evoRes = await fetch(speciesData.evolution_chain.url);
           const evoData = await evoRes.json();
-
-          const evoList: any[] = [];
-          const parseEvo = (node: any) => {
-            evoList.push({
-              name: node.species.name,
-              id: node.species.url.split('/').filter(Boolean).pop(),
-            });
-            if (node.evolves_to && node.evolves_to.length > 0) {
-              node.evolves_to.forEach((child: any) => parseEvo(child));
-            }
-          };
-          parseEvo(evoData.chain);
-          setEvolutionChain(evoList);
+          setEvolutionTree(parseEvoNode(evoData.chain));
         }
       } catch (err) {
         console.error("Failed to fetch profile:", err);
@@ -105,6 +166,39 @@ export default function PokemonProfilePage() {
   const tabs = ['stats', 'abilities', 'moves', 'locations', 'evolutions', 'forms'];
   const primaryType = pokemon.types?.[0]?.type?.name;
   const primaryColor = TYPE_COLORS[primaryType] || '#EE1515';
+
+  // Recursively renders an evolution node plus all its branches.
+  // Each branch shows the method/level required to reach it, right on the arrow.
+  const renderEvoNode = (node: EvoNode, depth = 0) => (
+    <div className="flex items-center gap-3" key={node.id}>
+      <Link href={`/pokedex/${node.id}`} className="tile-card flex flex-col items-center w-32 flex-shrink-0 cursor-pointer">
+        <img
+          src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${node.id}.png`}
+          alt={node.name}
+          className="w-16 h-16 object-contain mb-2"
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/0.png' }}
+        />
+        <span className="text-xs font-bold text-[#7A7A84]">#{String(node.id).padStart(3, '0')}</span>
+        <span className="text-sm font-bold text-[#F5F5F5] capitalize">{node.name}</span>
+      </Link>
+
+      {node.children.length > 0 && (
+        <div className="flex flex-col gap-5">
+          {node.children.map((child) => (
+            <div className="flex items-center gap-3" key={child.id}>
+              <div className="flex flex-col items-center gap-1.5 w-24 flex-shrink-0 text-center">
+                <span className="evo-arrow-ball" aria-hidden="true" />
+                <span className="evo-method-label">
+                  {describeEvolutionMethods(child.evolutionDetails)}
+                </span>
+              </div>
+              {renderEvoNode(child, depth + 1)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="ball-root">
@@ -252,27 +346,13 @@ export default function PokemonProfilePage() {
             )}
 
             {activeTab === 'evolutions' && (
-              <div className="flex flex-wrap justify-center gap-4">
-                {evolutionChain.length === 0 ? (
+              <div className="overflow-x-auto pb-2">
+                {!evolutionTree ? (
                   <div className="text-center text-[#7A7A84] font-medium py-10 capsule-label text-sm">No evolutions found.</div>
                 ) : (
-                  evolutionChain.map((evo, idx) => (
-                    <Link href={`/pokedex/${evo.id}`} key={evo.id} className="flex items-center gap-3">
-                      <div className="tile-card flex flex-col items-center w-32 cursor-pointer">
-                        <img
-                          src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${evo.id}.png`}
-                          alt={evo.name}
-                          className="w-16 h-16 object-contain mb-2"
-                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/0.png' }}
-                        />
-                        <span className="text-xs font-bold text-[#7A7A84]">#{String(evo.id).padStart(3, '0')}</span>
-                        <span className="text-sm font-bold text-[#F5F5F5] capitalize">{evo.name}</span>
-                      </div>
-                      {idx < evolutionChain.length - 1 && (
-                        <span className="evo-arrow-ball hidden sm:block" aria-hidden="true" />
-                      )}
-                    </Link>
-                  ))
+                  <div className="flex justify-center min-w-max px-2">
+                    {renderEvoNode(evolutionTree)}
+                  </div>
                 )}
               </div>
             )}
@@ -489,6 +569,7 @@ export default function PokemonProfilePage() {
           border-radius: 9999px;
           background: linear-gradient(180deg, #6b6b74 0%, #6b6b74 46%, #232324 46%, #232324 54%, #45454c 54%, #45454c 100%);
           position: relative;
+          flex-shrink: 0;
         }
         .evo-arrow-ball::after {
           content: '';
@@ -501,6 +582,18 @@ export default function PokemonProfilePage() {
           background: #17171A;
           border: 1px solid #8A8A94;
           transform: translate(-50%, -50%);
+        }
+
+        .evo-method-label {
+          font-family: 'Inter', ui-sans-serif, sans-serif;
+          font-size: 9.5px;
+          font-weight: 700;
+          line-height: 1.35;
+          color: #C9C9D2;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 8px;
+          padding: 4px 6px;
         }
 
         .loading-ball, .empty-ball {
