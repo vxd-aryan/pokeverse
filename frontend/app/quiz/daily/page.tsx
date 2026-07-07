@@ -28,6 +28,10 @@ export default function DailyGauntlet() {
   const [isFinished, setIsFinished] = useState(false);
   const [earnedXp, setEarnedXp] = useState(0);
   
+  // Submission Interception Block States
+  const [syncBlock, setSyncBlock] = useState(false);
+  const [syncBlockMessage, setSyncBlockMessage] = useState("");
+  
   // Timer State (3 minutes = 180 seconds)
   const [timeLeft, setTimeLeft] = useState(180);
   const [timerActive, setTimerActive] = useState(false);
@@ -40,7 +44,6 @@ export default function DailyGauntlet() {
     }
 
     // Evaluate locking constraints matching database tracking variables
-    // Using en-CA ensures we get the local YYYY-MM-DD format, preventing timezone bypasses
     const today = new Date().toLocaleDateString('en-CA');
     
     if (user.last_quiz_date === today) {
@@ -115,6 +118,25 @@ export default function DailyGauntlet() {
           errorMessage = JSON.stringify(errData);
         }
         
+        // 🛡️ INTERCEPT DOUBLE ATTEMPTS GRACEFULLY WITHOUT AN ALERT WINDOW
+        if (res.status === 400 || errorMessage.toLowerCase().includes("already recorded")) {
+          setSyncBlockMessage(errorMessage);
+          setSyncBlock(true);
+          
+          // Forcefully update the store locally if needed to lock down future access points
+          if (user) {
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            setUser({ ...user, last_quiz_date: todayStr });
+          }
+
+          // Automatically kick them back to headquarters after 4 seconds
+          setTimeout(() => {
+            router.push('/quiz');
+          }, 4000);
+          return;
+        }
+        
+        // Safety fallback for any other unexpected database sync crash errors
         alert("Sync Error: " + errorMessage);
       }
     } catch (err) {
@@ -155,7 +177,28 @@ export default function DailyGauntlet() {
     );
   }
 
-  // --- LOCKOUT OVERLAY SCREEN ---
+  // --- MID-GAME SUBMISSION LOCKOUT OVERLAY SCREEN ---
+  if (syncBlock) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-white flex flex-col justify-center items-center p-6">
+        <div className="bg-slate-800 p-10 rounded-3xl border border-rose-500/40 text-center max-w-lg shadow-[0_0_50px_rgba(244,63,94,0.1)]">
+          <div className="text-6xl mb-6 animate-pulse">🔒</div>
+          <h1 className="text-2xl font-black text-rose-500 tracking-widest uppercase mb-4">Sync Matrix Blocked</h1>
+          <p className="text-slate-300 leading-relaxed mb-6 font-medium">
+            {syncBlockMessage || "An evaluation has already been completely recorded for your profile parameters today."}
+          </p>
+          <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-700/40 mb-8 text-xs text-slate-400 font-mono">
+            Terminating link connection... Redirecting to Headquarters.
+          </div>
+          <Link href="/quiz" className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-xl font-bold transition-all inline-block border border-slate-600">
+            Return to Headquarters Now
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // --- INITIAL RENDERING LOCKOUT OVERLAY SCREEN ---
   if (locked) {
     return (
       <div className="min-h-screen bg-[#0f172a] text-white flex flex-col justify-center items-center p-6">
@@ -196,7 +239,6 @@ export default function DailyGauntlet() {
   }
 
   // --- ACTIVE QUIZ RUNTIME INTERFACE ---
-  // Ensure we don't try to access undefined questions if an error occurred
   if (!questions || questions.length === 0) return null;
 
   const currentQ = questions[currentIndex];
