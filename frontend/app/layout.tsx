@@ -19,6 +19,7 @@ function ExploreDropdown() {
     { name: 'Evolution Trees', href: '/explore/evolution' },
     { name: 'Moves & Attacks', href: '/explore/moves' },
     { name: 'Abilities Database', href: '/explore/abilities' },
+    { name: "Items Database", href: "/explore/items" },
   ];
 
   return (
