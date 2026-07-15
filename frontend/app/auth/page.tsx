@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function AuthPage() {
-  const { setUser, clearUser } = useUserStore() as any; 
+  const { setUser, clearUser } = useUserStore() as any;
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
-  
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,12 +28,12 @@ export default function AuthPage() {
       }
       localStorage.removeItem('trainer_token');
 
-      const endpoint = isLogin 
-        ? 'https://pokeverse-backend-0o6t.onrender.com/api/auth/login' 
+      const endpoint = isLogin
+        ? 'https://pokeverse-backend-0o6t.onrender.com/api/auth/login'
         : 'https://pokeverse-backend-0o6t.onrender.com/api/auth/register';
-        
-      const payload = isLogin 
-        ? { email, password } 
+
+      const payload = isLogin
+        ? { email, password }
         : { username, email, password };
 
       const response = await fetch(endpoint, {
@@ -43,7 +43,7 @@ export default function AuthPage() {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.detail || "Authentication Failed. Check your credentials.");
       }
@@ -65,8 +65,8 @@ export default function AuthPage() {
 
       // Sync state across routing components and cross into the main hub
       router.refresh();
-      router.push('/quiz'); 
-      
+      router.push('/quiz');
+
     } catch (err: any) {
       console.error("Login Error Catch:", err);
       setError(err.message || "Failed to establish a terminal bridge with the Academy.");
@@ -77,96 +77,311 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-md bg-slate-800/60 backdrop-blur-md rounded-3xl border border-slate-700/80 p-8 shadow-2xl">
-        <div className="text-center mb-6">
-          <span className="text-4xl block mb-2">🎓</span>
-          <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">Academy Gateway</h1>
-        </div>
+    <div className="gate-root min-h-screen text-white flex flex-col justify-center items-center p-4 relative overflow-hidden">
 
-        <div className="grid grid-cols-2 bg-slate-900 p-1 rounded-xl mb-6 border border-slate-700/50">
-          <button 
-            type="button" 
-            onClick={() => { setIsLogin(true); setError(null); }} 
-            className={`py-2 text-xs font-bold rounded-lg transition-all ${isLogin ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            Sign In
-          </button>
-          <button 
-            type="button" 
-            onClick={() => { setIsLogin(false); setError(null); }} 
-            className={`py-2 text-xs font-bold rounded-lg transition-all ${!isLogin ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            Register
-          </button>
-        </div>
+      {/* sky decoration */}
+      <div className="sun-glow" aria-hidden="true" />
+      <div className="cloud cloud-a" aria-hidden="true" />
+      <div className="cloud cloud-b" aria-hidden="true" />
+      <div className="hills" aria-hidden="true" />
+      <div className="grass-row" aria-hidden="true" />
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
-            <span>⚠️</span> {error}
+      <div className="w-full max-w-md gate-sign relative z-10 rounded-[26px] p-[3px]">
+        <div className="gate-sign-inner rounded-[23px] p-8">
+
+          <div className="text-center mb-6">
+            <div className="emblem mx-auto mb-3" aria-hidden="true">
+              <span className="emblem-dot" />
+            </div>
+            <h1 className="gate-title text-2xl text-[#4a3423]">Academy Gateway</h1>
+            <p className="gate-label text-[10px] text-[#8a7355] mt-1 tracking-[0.2em]">YOUR JOURNEY BEGINS HERE</p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1 tracking-wider">TRAINER NAME</label>
-              <input 
-                type="text" 
-                required 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-                placeholder="AshKetchum" 
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-slate-200 placeholder-slate-600 transition-colors" 
-              />
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => { setIsLogin(true); setError(null); }}
+              className={`path-tab py-2 text-xs rounded-xl transition-all ${isLogin ? 'path-tab--sign-in-active' : ''}`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsLogin(false); setError(null); }}
+              className={`path-tab py-2 text-xs rounded-xl transition-all ${!isLogin ? 'path-tab--register-active' : ''}`}
+            >
+              Register
+            </button>
+          </div>
+
+          {error && (
+            <div className="error-scroll text-xs p-3 rounded-xl mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+              <span>⚠️</span> {error}
             </div>
           )}
-          
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1 tracking-wider">EMAIL ADDRESS</label>
-            <input 
-              type="email" 
-              required 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              placeholder="trainer@academy.com" 
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-slate-200 placeholder-slate-600 transition-colors" 
-            />
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1 tracking-wider">PASSWORD</label>
-            <input 
-              type="password" 
-              required 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              placeholder="••••••••" 
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-slate-200 placeholder-slate-600 transition-colors" 
-            />
-          </div>
-          
-          <button 
-            type="submit" 
-            disabled={loading} 
-            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 py-3 rounded-xl text-sm font-bold shadow-lg hover:opacity-95 transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-b-white rounded-full animate-spin" />
-            ) : isLogin ? (
-              'Enter Academy'
-            ) : (
-              'Create Profile'
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div>
+                <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">TRAINER NAME</label>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="AshKetchum"
+                  className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
+                />
+              </div>
             )}
-          </button>
-        </form>
-        
-        <div className="text-center mt-6">
-          <Link href="/" className="text-xs text-slate-500 hover:text-slate-400 underline transition-colors">
-            ← Continue as Guest
-          </Link>
+
+            <div>
+              <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">EMAIL ADDRESS</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="trainer@academy.com"
+                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">PASSWORD</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="set-off-btn w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? (
+                <span className="mini-pokeball" aria-hidden="true" />
+              ) : isLogin ? (
+                'Enter Academy'
+              ) : (
+                'Create Profile'
+              )}
+            </button>
+          </form>
+
+          <div className="text-center mt-6">
+            <Link href="/" className="dirt-path-link text-xs transition-colors">
+              ← Continue as Guest
+            </Link>
+          </div>
         </div>
       </div>
+
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+
+        .gate-root {
+          font-family: 'Nunito', ui-sans-serif, sans-serif;
+          background: linear-gradient(180deg, #241247 0%, #5a2f66 28%, #b4552f 52%, #e79a52 68%, #f6d9a5 84%, #f6d9a5 100%);
+        }
+        .gate-title {
+          font-family: 'Fredoka', ui-sans-serif, sans-serif;
+          font-weight: 700;
+        }
+        .gate-label {
+          font-family: 'Nunito', ui-sans-serif, sans-serif;
+          font-weight: 800;
+        }
+
+        .sun-glow {
+          position: absolute;
+          top: 8%;
+          left: 50%;
+          width: 260px;
+          height: 260px;
+          transform: translateX(-50%);
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(255,220,168,0.9), rgba(255,220,168,0.15) 60%, transparent 70%);
+          filter: blur(2px);
+          pointer-events: none;
+        }
+
+        .cloud {
+          position: absolute;
+          border-radius: 9999px;
+          background: rgba(255,255,255,0.12);
+          filter: blur(1px);
+          pointer-events: none;
+        }
+        .cloud-a { width: 160px; height: 36px; top: 16%; left: 8%; }
+        .cloud-b { width: 120px; height: 28px; top: 24%; right: 10%; }
+        @media (prefers-reduced-motion: no-preference) {
+          .cloud-a { animation: drift 22s ease-in-out infinite; }
+          .cloud-b { animation: drift 26s ease-in-out infinite reverse; }
+        }
+        @keyframes drift {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(24px); }
+        }
+
+        .hills {
+          position: absolute;
+          bottom: 90px;
+          left: 0;
+          right: 0;
+          height: 140px;
+          background: linear-gradient(180deg, #3f6b46 0%, #2f5638 100%);
+          border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+          transform: scaleX(1.4);
+          opacity: 0.9;
+          pointer-events: none;
+        }
+
+        .grass-row {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 90px;
+          background: #234d35;
+          pointer-events: none;
+        }
+        .grass-row::before {
+          content: '';
+          position: absolute;
+          top: -18px;
+          left: 0;
+          right: 0;
+          height: 20px;
+          background:
+            repeating-linear-gradient(
+              70deg,
+              #234d35 0px, #234d35 8px,
+              transparent 8px, transparent 16px
+            );
+          background-size: 24px 20px;
+        }
+
+        .gate-sign {
+          background: linear-gradient(155deg, #a5713f 0%, #6b4226 45%, #8a5a34 60%, #52341f 100%);
+          box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3);
+        }
+        .gate-sign-inner {
+          background: linear-gradient(180deg, #f9f1de 0%, #ece0c4 100%);
+        }
+
+        .emblem {
+          width: 46px;
+          height: 46px;
+          border-radius: 9999px;
+          background: linear-gradient(180deg, #c9432f 0%, #c9432f 46%, #3a2a1c 46%, #3a2a1c 54%, #f9f1de 54%, #f9f1de 100%);
+          box-shadow: 0 0 0 3px #f9f1de, 0 0 0 5px #a5713f;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .emblem-dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 9999px;
+          background: #f9f1de;
+          border: 2px solid #3a2a1c;
+        }
+
+        .path-tab {
+          background: #ece0c4;
+          color: #8a7355;
+          border: 1px solid #d9c69f;
+          font-weight: 700;
+        }
+        .path-tab--sign-in-active {
+          background: linear-gradient(180deg, #4f8c5f, #2f6b45);
+          color: #f9f1de;
+          border-color: #2f6b45;
+          box-shadow: 0 6px 14px -6px rgba(47,107,69,0.6);
+        }
+        .path-tab--register-active {
+          background: linear-gradient(180deg, #e0a13f, #c9862f);
+          color: #3a2a1c;
+          border-color: #c9862f;
+          box-shadow: 0 6px 14px -6px rgba(201,134,47,0.6);
+        }
+
+        .error-scroll {
+          background: #f6e2d9;
+          border: 1px solid #d98a6f;
+          color: #a1402c;
+          font-weight: 700;
+        }
+
+        .gate-input {
+          background: #fbf6ea;
+          border: 1px solid #d9c69f;
+          color: #4a3423;
+        }
+        .gate-input::placeholder { color: #b5a37f; }
+        .gate-input:focus {
+          outline: none;
+          border-color: #c9862f;
+          box-shadow: 0 0 0 3px rgba(201,134,47,0.2);
+        }
+
+        .set-off-btn {
+          background: linear-gradient(180deg, #e0a13f, #b9722c);
+          color: #3a2a1c;
+          border: 1px solid #9c5f26;
+        }
+        .set-off-btn:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+
+        .mini-pokeball {
+          display: inline-block;
+          width: 18px;
+          height: 18px;
+          border-radius: 9999px;
+          background: linear-gradient(180deg, #c9432f 0%, #c9432f 46%, #3a2a1c 46%, #3a2a1c 54%, #f9f1de 54%, #f9f1de 100%);
+          box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+          position: relative;
+        }
+        .mini-pokeball::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 5px;
+          height: 5px;
+          border-radius: 9999px;
+          background: #f9f1de;
+          border: 1px solid #3a2a1c;
+          transform: translate(-50%, -50%);
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .mini-pokeball { animation: spin 0.9s linear infinite; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .dirt-path-link {
+          color: #8a7355;
+          text-decoration: underline;
+        }
+        .dirt-path-link:hover {
+          color: #4a3423;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .mini-pokeball { animation: none; }
+          .cloud-a, .cloud-b { animation: none; }
+        }
+      `}</style>
     </div>
   );
 }
