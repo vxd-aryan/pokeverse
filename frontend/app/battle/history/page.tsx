@@ -26,7 +26,7 @@ export default function BattleHistoryPage() {
     const fetchHistory = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch("http://localhost:8000/api/battle/history", {
+       const res = await fetch("https://pokeverse-backend1.onrender.com/api/battle/history", {
           headers: { 
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {})
