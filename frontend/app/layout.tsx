@@ -137,20 +137,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // 🔑 Added `setUser` here so we can update the store after fetching
   const { user, setUser, clearUser } = useUserStore() as any; 
   const router = useRouter();
   
-  // 🔑 Added mounted state to prevent UI glitches during hydration
   const [mounted, setMounted] = useState(false);
 
-  // 🔑 NEW: Auto-Login effect to restore session on page refresh
+  // 1. Initial Session Fetch
   useEffect(() => {
     setMounted(true);
 
     const token = localStorage.getItem('trainer_token');
     
-    // If a token exists but the memory state (user) is empty (e.g. after a refresh)
     if (token && !user) {
       fetch('https://pokeverse-backend-0o6t.onrender.com/api/users/me', {
         headers: {
@@ -162,19 +159,53 @@ export default function RootLayout({
         throw new Error("Session expired");
       })
       .then(userData => {
-        // Repopulate the store with the fetched user data!
         setUser(userData);
       })
       .catch(err => {
         console.error("Failed to restore session:", err);
-        // If the token is invalid, clean it up
         localStorage.removeItem('trainer_token');
         clearUser();
       });
     }
   }, [user, setUser, clearUser]);
 
-  // HEAVY LOGOUT: Completely flushes all memory and local storage
+  // 2. Global Event Listener for Battle XP Updates
+  useEffect(() => {
+    const handleXpUpdate = (event: CustomEvent<{ xpChange: number }>) => {
+      if (!user) return; // Ignore if not logged in
+
+      let newXp = user.current_xp + event.detail.xpChange;
+      let newLevel = user.level;
+
+      // Prevent dropping below 0 XP
+      if (newXp < 0) {
+        newXp = 0;
+      }
+
+      // Handle Level Up logic (Dynamic threshold: Level * 100)
+      let currentThreshold = newLevel * 100;
+      while (newXp >= currentThreshold) {
+        newLevel += 1;
+        newXp -= currentThreshold;
+        currentThreshold = newLevel * 100; 
+      }
+
+      // Update the user store
+      setUser({
+        ...user,
+        current_xp: newXp,
+        level: newLevel
+      });
+    };
+
+    window.addEventListener('update-trainer-xp', handleXpUpdate as EventListener);
+    
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('update-trainer-xp', handleXpUpdate as EventListener);
+    };
+  }, [user, setUser]); // Re-bind if user object changes
+
   const logout = () => {
     localStorage.clear();
     clearUser();
@@ -189,7 +220,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {/* 🔑 Wait for the component to mount AND for the user to exist before rendering */}
         {mounted && user && (
           <nav className="sticky top-0 z-50 bg-slate-800 border-b-4 border-slate-700 shadow-lg">
             <div className="max-w-6xl mx-auto px-4 py-3">
@@ -228,13 +258,21 @@ export default function RootLayout({
                       Academy
                     </Link>
 
-                    {/* NEW WATCH LINK - DESKTOP */}
                     <Link 
                       href="/watch" 
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📺</span>
                       Watch
+                    </Link>
+
+                    {/* BATTLE ARENA LINK */}
+                    <Link 
+                      href="/battle" 
+                      className="flex items-center gap-2 text-red-400 hover:text-red-300 font-black uppercase tracking-widest text-sm transition-colors"
+                    >
+                      <span>⚔️</span>
+                      Battle
                     </Link>
                   </div>
                 </div>
@@ -284,13 +322,21 @@ export default function RootLayout({
                       <span>🎓</span>
                       Academy
                     </Link>
-                    {/* NEW WATCH LINK - MOBILE */}
                     <Link 
                       href="/watch" 
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📺</span>
                       Watch
+                    </Link>
+
+                    {/* BATTLE ARENA LINK - MOBILE */}
+                    <Link 
+                      href="/battle" 
+                      className="flex items-center gap-2 text-red-400 hover:text-red-300 font-black uppercase tracking-widest text-sm transition-colors"
+                    >
+                      <span>⚔️</span>
+                      Battle
                     </Link>
                 </div>
 

@@ -1,6 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
+import datetime
 from datetime import date
+from typing import List, Optional
+from pydantic import BaseModel, ConfigDict, Field
 
 # ─── AUTHENTICATION SCHEMAS (ADDED FOR MAIN.PY) ───
 
@@ -21,13 +22,20 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    email: str  # Added to ensure your Next.js auth state can map trainer tokens!
-    current_xp: int
     level: int
+    current_xp: int
     title: str
-    last_quiz_date: Optional[date] = None
-    # Enable Pydantic v2 to automatically read SQLAlchemy ORM attributes
-    model_config = ConfigDict(from_attributes=True)
+    battles_played: int
+    wins: int
+    losses: int
+    win_rate: float
+    
+    # --- ROM Mechanic Telemetry ---
+    total_critical_hits: int = 0
+    total_statuses_inflicted: int = 0
+
+    class Config:
+        from_attributes = True
 
 
 # ─── CORE QUIZ SCHEMAS ───
@@ -56,7 +64,7 @@ class QuizSubmit(BaseModel):
 
 
 # ─── TELEMETRY SCHEMAS FOR THE DAILY GAUNTLET ───
-# Change it to this:
+
 class DailyQuizSubmission(BaseModel):
     daily_correct: int
     
@@ -67,5 +75,38 @@ class LeaderboardUserResponse(BaseModel):
     level: int
     title: str
     current_xp: int  # Primary ranking metric weight
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- BATTLE ARENA SCHEMAS ---
+
+class BattleCreate(BaseModel):
+    mode: str = Field(default="quick", description="Mode of battle, e.g., quick, ranked")
+
+class BattleAction(BaseModel):
+    action_type: str = Field(..., description="Either 'move' or 'switch'")
+    target_pokemon_id: Optional[int] = Field(None, description="Target Pokemon ID if switching")
+    move_name: Optional[str] = Field(None, description="Name of the move if attacking")
+
+class BattleResponse(BaseModel):
+    battle_id: int
+    status: str
+    turn_count: int
+    current_state: dict
+    latest_logs: List[str]
+    winner_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class BattleHistoryBase(BaseModel):
+    id: int
+    mode: str
+    status: str
+    turn_count: int
+    winner_id: Optional[int] = None
+    current_state: dict  
+    created_at: datetime.datetime
+    ended_at: Optional[datetime.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
