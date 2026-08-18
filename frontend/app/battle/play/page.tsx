@@ -48,10 +48,8 @@ type UiPhase =
 const getTrainerToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   
-  // Make sure to prioritize the key storing your actual JWT string, not the user email
   const token = localStorage.getItem('access_token') || localStorage.getItem('token');
   
-  // Basic validation: ensure it's a JWT (contains dots) and not a plain email string
   if (token && token.includes('.')) {
     return token;
   }
@@ -112,9 +110,10 @@ export default function BattlePlayPage() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [logs, setLogs] = useState<BattleLog[]>([]);
   const [, setReconnectAttempts] = useState(0);
-  const [, setOpponentWantsRematch] = useState(false);
+  const [opponentWantsRematch, setOpponentWantsRematch] = useState(false);
   const [iVotedRematch, setIVotedRematch] = useState(false);
-  const [, setExitReason] = useState<string | null>(null);
+  const [exitReason, setExitReason] = useState<string | null>(null);
+  const [isWaitingForTurn, setIsWaitingForTurn] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(false);
 
   // --- Refs ---
@@ -146,25 +145,27 @@ export default function BattlePlayPage() {
         xpChange = 50; // Opponent fled/disconnected
       } else if (gameState) {
         const isVictory = gameState.winner === gameState.active_pokemon.id;
-        xpChange = isVictory ? 50 : -15; // Win/Loss logic
+        const isDraw = !gameState.winner;
+        if (isDraw) {
+          xpChange = 0;
+        } else {
+          xpChange = isVictory ? 50 : -15; // Win/Loss logic
+        }
       }
 
       if (xpChange !== 0) {
-        // Dispatch event for the Navbar to pick up
         window.dispatchEvent(
           new CustomEvent('update-trainer-xp', { detail: { xpChange } })
         );
-        setXpAwarded(true);
       }
+      setXpAwarded(true);
     } else if (phase === 'battling' && xpAwarded) {
-      // Reset flag for rematches
       setXpAwarded(false);
     }
   }, [phase, gameState, xpAwarded]);
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
-    // Live secure WebSocket connection target
-  const wsUrl = `wss://pokeverse-backend1.onrender.com/ws?token=${encodeURIComponent(token)}`; 
+    const wsUrl = `wss://pokeverse-backend1.onrender.com/ws?token=${encodeURIComponent(token)}`; 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     intentionalCloseRef.current = false;
@@ -172,14 +173,12 @@ export default function BattlePlayPage() {
     ws.onopen = () => {
       setReconnectAttempts(0);
       
-      // Keep-Alive Heartbeat: Send a ping every 30 seconds to prevent Render disconnects
       const pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ action: 'ping' }));
         }
       }, 30000);
 
-      // Clean up the interval when the socket closes
       ws.addEventListener('close', () => clearInterval(pingInterval));
     };
 
@@ -195,6 +194,7 @@ export default function BattlePlayPage() {
           case 'state_update':
             if (data.state) {
               setGameState(data.state);
+              setIsWaitingForTurn(false); // Reset turn lock on state update
               if (data.state.status === 'ongoing') {
                 setPhase('battling');
                 setOpponentWantsRematch(false);
@@ -210,6 +210,7 @@ export default function BattlePlayPage() {
             break;
           case 'game_over':
             setPhase('game_over');
+            setIsWaitingForTurn(false);
             if (data.state) setGameState(data.state);
             break;
           case 'rematch_status':
@@ -224,6 +225,7 @@ export default function BattlePlayPage() {
           case 'foe_disconnected':
             setExitReason(data.text || 'Foe disconnected from the battle.');
             setPhase('opponent_left');
+            setIsWaitingForTurn(false);
             break;
         }
       } catch (err) {
@@ -263,7 +265,8 @@ export default function BattlePlayPage() {
   }, [connectWebSocket, router]);
 
   const handleMove = (moveId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isWaitingForTurn) {
+      setIsWaitingForTurn(true); // Lock moves until turn updates
       wsRef.current.send(JSON.stringify({ action: 'use_move', moveId }));
     }
   };
@@ -438,10 +441,13 @@ export default function BattlePlayPage() {
                           <h2 className="text-xl md:text-2xl font-black uppercase text-[#00b34d] mb-1">
                             VICTORY!
                           </h2>
+                          <div className="text-gray-600 font-bold text-xs md:text-sm">
+                            {exitReason || 'Foe left the battle.'}
+                          </div>
                           <div className="text-[#00b34d] font-bold text-sm md:text-md">
                             +50 XP
                           </div>
-                          <div className="grid grid-cols-2 gap-3 w-full mt-4">
+                          <div className="grid grid-cols-2 gap-3 w-full mt-2">
                             <button
                               disabled
                               className="bg-[#00cc55] border-b-[5px] border-[#009940] text-white px-2 py-3 rounded-xl font-bold uppercase text-xs md:text-sm opacity-50 cursor-not-allowed"
@@ -457,9 +463,24 @@ export default function BattlePlayPage() {
                           </div>
                         </div>
                       ) : phase === 'game_over' ? (
-                        <div className="flex flex-col items-center justify-center h-full space-y-2 font-sans tracking-wide">
+                        <div className="flex flex-col items-center justify-center h-full space-y-1 font-sans tracking-wide">
                           {(() => {
                             const isVictory = gameState.winner === gameState.active_pokemon.id;
+                            const isDraw = !gameState.winner;
+
+                            if (isDraw) {
+                              return (
+                                <>
+                                  <h2 className="text-xl md:text-2xl font-black uppercase text-yellow-500">
+                                    DRAW!
+                                  </h2>
+                                  <div className="font-bold text-sm md:text-md text-yellow-500">
+                                    +0 XP
+                                  </div>
+                                </>
+                              );
+                            }
+
                             return (
                               <>
                                 <h2 className={`text-xl md:text-2xl font-black uppercase ${isVictory ? 'text-[#00b34d]' : 'text-[#ff0000]'}`}>
@@ -472,7 +493,13 @@ export default function BattlePlayPage() {
                             );
                           })()}
 
-                          <div className="grid grid-cols-2 gap-3 w-full mt-4 px-2">
+                          {opponentWantsRematch && (
+                            <div className="text-xs font-bold text-blue-600 animate-pulse mt-1">
+                              Opponent requested a rematch!
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-3 w-full mt-2 px-2">
                             <button
                               onClick={handleRematch}
                               disabled={iVotedRematch}
@@ -509,7 +536,7 @@ export default function BattlePlayPage() {
                               <button
                                 key={move.id}
                                 onClick={() => handleMove(move.id)}
-                                disabled={phase !== 'battling'}
+                                disabled={phase !== 'battling' || isWaitingForTurn}
                                 className={`${getMoveColor(idx)} border-4 rounded-lg p-2 flex flex-col justify-center items-center transition-transform disabled:opacity-50 shadow-sm active:scale-95`}
                               >
                                 <span className="font-black text-gray-800 text-sm md:text-md uppercase tracking-wide">
