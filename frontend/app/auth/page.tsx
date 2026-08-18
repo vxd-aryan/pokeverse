@@ -22,13 +22,15 @@ export default function AuthPage() {
     setError(null);
 
     try {
-      // 🛡️ Safe Execution: Only call clearUser if it is properly configured in your store
+      // Clear old state and token keys
       if (typeof clearUser === 'function') {
         clearUser();
       }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('token');
       localStorage.removeItem('trainer_token');
 
-     const endpoint = isLogin
+      const endpoint = isLogin
         ? 'https://pokeverse-backend1.onrender.com/api/auth/login'
         : 'https://pokeverse-backend1.onrender.com/api/auth/register';
 
@@ -48,14 +50,23 @@ export default function AuthPage() {
         throw new Error(data.detail || "Authentication Failed. Check your credentials.");
       }
 
-      // Save token to local storage (Backend uses email as the bearer verification)
-      localStorage.setItem('trainer_token', data.access_token || data.token);
+      // Extract generated authentication token
+      const authToken = data.access_token || data.token || data.bearer_token;
 
-      // Set user in global state with reliable fallback metrics
+      if (!authToken) {
+        throw new Error("No access token returned from authentication server.");
+      }
+
+      // Sync across all key variations used across different routes
+      localStorage.setItem('access_token', authToken);
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('trainer_token', authToken);
+
+      // Store trainer profile in state
       if (typeof setUser === 'function') {
         setUser({
-          username: data.username,
-          email: data.email,
+          username: data.username || username || email.split('@')[0],
+          email: data.email || email,
           level: data.level || 1,
           title: data.title || "Novice Trainer",
           current_xp: data.current_xp || 0,
@@ -63,7 +74,6 @@ export default function AuthPage() {
         });
       }
 
-      // Sync state across routing components and cross into the main hub
       router.refresh();
       router.push('/quiz');
 
@@ -71,7 +81,6 @@ export default function AuthPage() {
       console.error("Login Error Catch:", err);
       setError(err.message || "Failed to establish a terminal bridge with the Academy.");
     } finally {
-      // 🚨 CRITICAL: Always release the loading latch, even on failure states
       setLoading(false);
     }
   };
