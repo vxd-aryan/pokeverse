@@ -182,12 +182,23 @@ export default function DashboardPage() {
     }
   }, [user?.xp, lastUserXp, loadedUsername, user?.username]);
 
-  const saveToDB = (updates: any) => {
-    if (!user) return;
-    const usersDatabase = JSON.parse(localStorage.getItem('my_pokemon_users') || '{}');
-    usersDatabase[user.username] = { ...usersDatabase[user.username], ...updates };
+ const saveToDB = (updates: Record<string, any>) => {
+  if (!user || !user.username) return;
+
+  try {
+    const rawData = localStorage.getItem('my_pokemon_users');
+    const usersDatabase = rawData ? JSON.parse(rawData) : {};
+
+    usersDatabase[user.username] = {
+      ...(usersDatabase[user.username] || {}),
+      ...updates,
+    };
+
     localStorage.setItem('my_pokemon_users', JSON.stringify(usersDatabase));
-  };
+  } catch (error) {
+    console.error('Failed to save user data to localStorage:', error);
+  }
+};
 
   const handleSelectPokemon = (basePokemon: any) => {
     if (activeSlot === null) return;

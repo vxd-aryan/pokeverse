@@ -49,7 +49,7 @@ export default function AuthPage() {
       }
 
       // Save token to local storage (Backend uses email as the bearer verification)
-      localStorage.setItem('trainer_token', data.email);
+      localStorage.setItem('trainer_token', data.access_token || data.token);
 
       // Set user in global state with reliable fallback metrics
       if (typeof setUser === 'function') {
