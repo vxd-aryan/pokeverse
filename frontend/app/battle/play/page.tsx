@@ -170,6 +170,16 @@ export default function BattlePlayPage() {
 
     ws.onopen = () => {
       setReconnectAttempts(0);
+      
+      // Keep-Alive Heartbeat: Send a ping every 30 seconds to prevent Render disconnects
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ action: 'ping' }));
+        }
+      }, 30000);
+
+      // Clean up the interval when the socket closes
+      ws.addEventListener('close', () => clearInterval(pingInterval));
     };
 
     ws.onmessage = (event) => {

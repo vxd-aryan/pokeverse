@@ -953,13 +953,23 @@ async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
     try:
         while True:
             data = await websocket.receive_text()
-            parsed = json.loads(data)
+            
+            # FIX 1: Prevent JSON crashes
+            try:
+                parsed = json.loads(data)
+            except json.JSONDecodeError:
+                print(f"[Battle Arena] Received invalid JSON from {user_id}")
+                continue
+                
             action = parsed.get("action")
 
             if action == "find_match":
                 await matchmaker.join_queue(user_id)
             elif action == "cancel_search":
                 matchmaker.leave_queue(user_id)
+            elif action == "ping":
+                # FIX 2: Defeat the Render timeout (Do nothing, just acknowledge)
+                pass 
             else:
                 room = matchmaker.find_room(user_id)
                 if room:
