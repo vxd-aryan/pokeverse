@@ -63,7 +63,7 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
     const token = localStorage.getItem('trainer_token');
     
     try {
-      const res = await fetch(`https://pokeverse-backend-0o6t.onrender.com/api/users/me`, { 
+      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, { 
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

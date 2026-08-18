@@ -54,7 +54,7 @@ export default function DailyGauntlet() {
 
     const fetchGauntlet = async () => {
       try {
-        const res = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/daily/questions');
+        const res = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/daily/questions');
         if (!res.ok) throw new Error("Failed to sync evaluation questions.");
         const data = await res.json();
         setQuestions(data);
@@ -87,7 +87,7 @@ export default function DailyGauntlet() {
     const token = localStorage.getItem('trainer_token') || localStorage.getItem('token');
     
     try {
-      const res = await fetch('https://pokeverse-backend-0o6t.onrender.com/api/quiz/daily/submit', {
+      const res = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/daily/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
