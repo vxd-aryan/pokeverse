@@ -12,7 +12,7 @@ export default function BattleCreatePage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("token"); // Assuming JWT is stored here
-      const res = await fetch("http://localhost:8000/api/battle/start", {
+      const res = await fetch("https://pokeverse-backend1.onrender.com/api/battle/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
