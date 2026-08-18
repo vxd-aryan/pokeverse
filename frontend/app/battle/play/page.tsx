@@ -47,13 +47,15 @@ type UiPhase =
 // --- Token Extraction Helper ---
 const getTrainerToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return (
-    localStorage.getItem('trainer_token') ||
-    localStorage.getItem('token') ||
-    localStorage.getItem('access_token') ||
-    localStorage.getItem('auth_token') ||
-    null
-  );
+  
+  // Make sure to prioritize the key storing your actual JWT string, not the user email
+  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+  
+  // Basic validation: ensure it's a JWT (contains dots) and not a plain email string
+  if (token && token.includes('.')) {
+    return token;
+  }
+  return null;
 };
 
 // --- Crash-Proof Token & Identifier Resolver ---
@@ -162,8 +164,7 @@ export default function BattlePlayPage() {
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
     // Live secure WebSocket connection target
-    const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`;
-
+  const wsUrl = `wss://pokeverse-backend1.onrender.com/ws?token=${encodeURIComponent(token)}`; 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     intentionalCloseRef.current = false;
