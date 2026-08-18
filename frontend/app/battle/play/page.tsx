@@ -109,10 +109,10 @@ export default function BattlePlayPage() {
   const [phase, setPhase] = useState<UiPhase>('connecting');
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [logs, setLogs] = useState<BattleLog[]>([]);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const [opponentWantsRematch, setOpponentWantsRematch] = useState(false);
+  const [, setReconnectAttempts] = useState(0);
+  const [, setOpponentWantsRematch] = useState(false);
   const [iVotedRematch, setIVotedRematch] = useState(false);
-  const [exitReason, setExitReason] = useState<string | null>(null);
+  const [, setExitReason] = useState<string | null>(null);
   const [xpAwarded, setXpAwarded] = useState(false);
 
   // --- Refs ---
@@ -139,7 +139,7 @@ export default function BattlePlayPage() {
   useEffect(() => {
     if ((phase === 'game_over' || phase === 'opponent_left') && !xpAwarded) {
       let xpChange = 0;
-      
+
       if (phase === 'opponent_left') {
         xpChange = 50; // Opponent fled/disconnected
       } else if (gameState) {
@@ -161,8 +161,8 @@ export default function BattlePlayPage() {
   }, [phase, gameState, xpAwarded]);
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//127.0.0.1:8000/api/battle/ws?token=${encodeURIComponent(token)}`;
+    // Live secure WebSocket connection target
+    const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -220,7 +220,7 @@ export default function BattlePlayPage() {
       }
     };
 
-    ws.onclose = (event) => {
+    ws.onclose = () => {
       if (intentionalCloseRef.current) return;
       if (retryCount < maxRetries) {
         const timeout = Math.pow(2, retryCount) * 1000;
