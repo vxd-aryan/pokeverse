@@ -165,7 +165,8 @@ export default function BattlePlayPage() {
   }, [phase, gameState, xpAwarded]);
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
-    const wsUrl = `wss://pokeverse-backend1.onrender.com/ws?token=${encodeURIComponent(token)}`; 
+    // FIX: Updated this URL to include /api/battle
+    const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`; 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     intentionalCloseRef.current = false;
