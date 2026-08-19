@@ -942,9 +942,13 @@ class BattleMatchmaker:
 
 matchmaker = BattleMatchmaker()
 
+# --- ALIAS ROUTE FOR FRONTEND COMPATIBILITY ---
+@app.websocket("/ws")
+async def alias_battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
+    """Alias route to catch connections hitting /ws instead of /api/battle/ws"""
+    await battle_websocket_endpoint(websocket, token)
 
 # --- BATTLE ARENA WEBSOCKET ROUTE ---
-
 @app.websocket("/api/battle/ws")
 async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
     user_id = token
