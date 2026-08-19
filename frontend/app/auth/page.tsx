@@ -45,7 +45,7 @@ export default function AuthPage() {
       });
 
       const data = await response.json();
-
+      console.log("BACKEND RESPONSE PAYLOAD:", data);
       if (!response.ok) {
         throw new Error(data.detail || "Authentication Failed. Check your credentials.");
       }
