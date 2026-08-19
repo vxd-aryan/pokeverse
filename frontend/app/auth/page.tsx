@@ -22,7 +22,6 @@ export default function AuthPage() {
     setError(null);
 
     try {
-      // Clear old state and token keys
       if (typeof clearUser === 'function') {
         clearUser();
       }
@@ -45,32 +44,41 @@ export default function AuthPage() {
       });
 
       const data = await response.json();
-      console.log("BACKEND RESPONSE PAYLOAD:", data);
+
       if (!response.ok) {
-        throw new Error(data.detail || "Authentication Failed. Check your credentials.");
+        throw new Error(data.detail || data.message || "Authentication Failed. Check your credentials.");
       }
 
-      // Extract generated authentication token
-      const authToken = data.access_token || data.token || data.bearer_token;
+      // Check all standard and nested token key variations
+      const authToken = 
+        data.access_token || 
+        data.token || 
+        data.accessToken || 
+        data.jwt || 
+        data.key || 
+        data.data?.access_token || 
+        data.data?.token || 
+        data.user?.token || 
+        data.session?.access_token;
 
       if (!authToken) {
-        throw new Error("No access token returned from authentication server.");
+        // Displays raw response payload in UI if no recognized token property exists
+        throw new Error(`Server returned unexpected data structure: ${JSON.stringify(data)}`);
       }
 
-      // Sync across all key variations used across different routes
+      // Persist token across all common storage keys
       localStorage.setItem('access_token', authToken);
       localStorage.setItem('token', authToken);
       localStorage.setItem('trainer_token', authToken);
 
-      // Store trainer profile in state
       if (typeof setUser === 'function') {
         setUser({
-          username: data.username || username || email.split('@')[0],
-          email: data.email || email,
-          level: data.level || 1,
-          title: data.title || "Novice Trainer",
-          current_xp: data.current_xp || 0,
-          guessed_pokemon: data.guessed_pokemon || []
+          username: data.username || data.user?.username || username || email.split('@')[0],
+          email: data.email || data.user?.email || email,
+          level: data.level || data.user?.level || 1,
+          title: data.title || data.user?.title || "Novice Trainer",
+          current_xp: data.current_xp || data.user?.current_xp || 0,
+          guessed_pokemon: data.guessed_pokemon || data.user?.guessed_pokemon || []
         });
       }
 
@@ -124,7 +132,7 @@ export default function AuthPage() {
           </div>
 
           {error && (
-            <div className="error-scroll text-xs p-3 rounded-xl mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+            <div className="error-scroll text-xs p-3 rounded-xl mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200 break-all">
               <span>⚠️</span> {error}
             </div>
           )}
