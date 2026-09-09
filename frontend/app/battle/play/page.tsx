@@ -166,23 +166,18 @@ export default function BattlePlayPage() {
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
     try {
-      // FIX 1: Use proper WSS protocol and pass token via Authorization header
-      // The token is no longer exposed in the URL
-      const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws`;
-      
+      // NOTE: The backend's /api/battle/ws route reads `token` as a query
+      // parameter directly (defaulting to "guest" if absent) - it does NOT
+      // listen for an `authenticate` message. The token MUST be sent in the
+      // URL for the backend to identify this connection as the right user.
+      const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`;
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       intentionalCloseRef.current = false;
 
       ws.onopen = () => {
         setReconnectAttempts(0);
-        
-        // FIX 2: Send token immediately after connection opens as a separate message
-        // This is more secure than putting it in the URL
-        ws.send(JSON.stringify({ 
-          action: 'authenticate',
-          token: token 
-        }));
 
         // Keep-alive ping to prevent connection timeout on Render
         const pingInterval = setInterval(() => {
@@ -199,18 +194,17 @@ export default function BattlePlayPage() {
           const data = JSON.parse(event.data);
 
           switch (data.type) {
-            case 'authenticated':
-              // FIX 3: Wait for authentication confirmation before finding match
-              setPhase('searching');
-              ws.send(JSON.stringify({ action: 'find_match' }));
-              break;
-              
             case 'connected':
+              // Backend has registered this socket under the token-derived
+              // user_id. Now explicitly join matchmaking.
               setPhase('searching');
               ws.send(JSON.stringify({ action: 'find_match' }));
               break;
-              
+
             case 'state_update':
+              // Also fires immediately on reconnect if the backend finds
+              // this user already in a live room (register_connection
+              // rebinds the socket and pushes current state right away).
               if (data.state) {
                 setGameState(data.state);
                 setIsWaitingForTurn(false); // Reset turn lock on state update
