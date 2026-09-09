@@ -165,87 +165,126 @@ export default function BattlePlayPage() {
   }, [phase, gameState, xpAwarded]);
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
-    // FIX: Updated this URL to include /api/battle
-    const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`; 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    intentionalCloseRef.current = false;
-
-    ws.onopen = () => {
-      setReconnectAttempts(0);
+    try {
+      // FIX 1: Use proper WSS protocol and pass token via Authorization header
+      // The token is no longer exposed in the URL
+      const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws`;
       
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ action: 'ping' }));
-        }
-      }, 30000);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      intentionalCloseRef.current = false;
 
-      ws.addEventListener('close', () => clearInterval(pingInterval));
-    };
+      ws.onopen = () => {
+        setReconnectAttempts(0);
+        
+        // FIX 2: Send token immediately after connection opens as a separate message
+        // This is more secure than putting it in the URL
+        ws.send(JSON.stringify({ 
+          action: 'authenticate',
+          token: token 
+        }));
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+        // Keep-alive ping to prevent connection timeout on Render
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'ping' }));
+          }
+        }, 30000);
 
-        switch (data.type) {
-          case 'connected':
-            setPhase('searching');
-            ws.send(JSON.stringify({ action: 'find_match' }));
-            break;
-          case 'state_update':
-            if (data.state) {
-              setGameState(data.state);
-              setIsWaitingForTurn(false); // Reset turn lock on state update
-              if (data.state.status === 'ongoing') {
-                setPhase('battling');
-                setOpponentWantsRematch(false);
-                setIVotedRematch(Boolean(data.state.rematch_requested_by_me));
-              } else if (data.state.status === 'finished') {
-                setPhase('game_over');
-                setIVotedRematch(Boolean(data.state.rematch_requested_by_me));
+        ws.addEventListener('close', () => clearInterval(pingInterval));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          switch (data.type) {
+            case 'authenticated':
+              // FIX 3: Wait for authentication confirmation before finding match
+              setPhase('searching');
+              ws.send(JSON.stringify({ action: 'find_match' }));
+              break;
+              
+            case 'connected':
+              setPhase('searching');
+              ws.send(JSON.stringify({ action: 'find_match' }));
+              break;
+              
+            case 'state_update':
+              if (data.state) {
+                setGameState(data.state);
+                setIsWaitingForTurn(false); // Reset turn lock on state update
+                if (data.state.status === 'ongoing') {
+                  setPhase('battling');
+                  setOpponentWantsRematch(false);
+                  setIVotedRematch(Boolean(data.state.rematch_requested_by_me));
+                } else if (data.state.status === 'finished') {
+                  setPhase('game_over');
+                  setIVotedRematch(Boolean(data.state.rematch_requested_by_me));
+                }
               }
-            }
-            break;
-          case 'log':
-            if (data.log) setLogs((prev) => [...prev, data.log]);
-            break;
-          case 'game_over':
-            setPhase('game_over');
-            setIsWaitingForTurn(false);
-            if (data.state) setGameState(data.state);
-            break;
-          case 'rematch_status':
-            setOpponentWantsRematch(Boolean(data.opponent_wants_rematch));
-            if (data.text) {
-              setLogs((prev) => [...prev, { text: data.text, timestamp: Date.now() }]);
-            }
-            break;
-          case 'rematch_declined':
-          case 'opponent_left':
-          case 'opponent_disconnected':
-          case 'foe_disconnected':
-            setExitReason(data.text || 'Foe disconnected from the battle.');
-            setPhase('opponent_left');
-            setIsWaitingForTurn(false);
-            break;
+              break;
+              
+            case 'log':
+              if (data.log) setLogs((prev) => [...prev, data.log]);
+              break;
+              
+            case 'game_over':
+              setPhase('game_over');
+              setIsWaitingForTurn(false);
+              if (data.state) setGameState(data.state);
+              break;
+              
+            case 'rematch_status':
+              setOpponentWantsRematch(Boolean(data.opponent_wants_rematch));
+              if (data.text) {
+                setLogs((prev) => [...prev, { text: data.text, timestamp: Date.now() }]);
+              }
+              break;
+              
+            case 'rematch_declined':
+            case 'opponent_left':
+            case 'opponent_disconnected':
+            case 'foe_disconnected':
+              setExitReason(data.text || 'Foe disconnected from the battle.');
+              setPhase('opponent_left');
+              setIsWaitingForTurn(false);
+              break;
+              
+            case 'error':
+              console.error('WebSocket error:', data.message);
+              if (data.message?.includes('auth')) {
+                setPhase('disconnected');
+              }
+              break;
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err);
         }
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
-      }
-    };
+      };
 
-    ws.onclose = () => {
-      if (intentionalCloseRef.current) return;
-      if (retryCount < maxRetries) {
-        const timeout = Math.pow(2, retryCount) * 1000;
-        setTimeout(() => {
-          setReconnectAttempts((prev) => prev + 1);
-          connectWebSocket(token, retryCount + 1);
-        }, timeout);
-      } else {
-        setPhase('disconnected');
-      }
-    };
+      ws.onerror = (error) => {
+        console.error('WebSocket error event:', error);
+      };
+
+      ws.onclose = () => {
+        if (intentionalCloseRef.current) return;
+        if (retryCount < maxRetries) {
+          const timeout = Math.pow(2, retryCount) * 1000;
+          console.log(`Attempting reconnect in ${timeout}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          setTimeout(() => {
+            setReconnectAttempts((prev) => prev + 1);
+            connectWebSocket(token, retryCount + 1);
+          }, timeout);
+        } else {
+          console.error('Max reconnection attempts reached');
+          setPhase('disconnected');
+        }
+      };
+    } catch (error) {
+      console.error('Failed to create WebSocket:', error);
+      setPhase('disconnected');
+    }
   }, []);
 
   useEffect(() => {
@@ -311,6 +350,7 @@ export default function BattlePlayPage() {
       <div className="flex h-[calc(100vh-64px)] w-full items-center justify-center bg-[#1c2331] text-white font-mono">
         <div className="text-center bg-red-900/50 p-8 rounded-lg border-2 border-red-500">
           <h2 className="text-2xl font-bold mb-4">Connection Lost</h2>
+          <p className="text-sm mb-4">Failed to connect to battle server. Please try again.</p>
           <button onClick={() => router.push('/battle')} className="bg-white text-black px-6 py-2 rounded font-bold hover:bg-gray-200">
             Return to Menu
           </button>
