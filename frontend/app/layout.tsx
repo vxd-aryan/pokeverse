@@ -23,7 +23,7 @@ function ExploreDropdown() {
   ];
 
   return (
-    <div 
+    <div
       className="relative inline-block text-left z-50"
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
@@ -37,8 +37,8 @@ function ExploreDropdown() {
         <div className="absolute left-0 mt-0 w-56 origin-top-left bg-slate-800 rounded-md shadow-xl ring-1 ring-slate-700 border border-slate-700 focus:outline-none overflow-hidden">
           <div className="py-1 flex flex-col" role="menu" aria-orientation="vertical">
             {exploreLinks.map((link) => (
-              <Link 
-                key={link.name} 
+              <Link
+                key={link.name}
                 href={link.href}
                 className="block px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
                 role="menuitem"
@@ -62,16 +62,21 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
       return;
     }
 
-    const token = localStorage.getItem('trainer_token');
-    
+    // FIX: Check all possible token keys, not just trainer_token, so this
+    // works regardless of which key the login flow happened to set.
+    const token =
+      localStorage.getItem('trainer_token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token');
+
     try {
-      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, { 
+      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (res.ok) {
         alert("Profile permanently deleted.");
       } else {
@@ -85,7 +90,7 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
   };
 
   return (
-    <div 
+    <div
       className="relative inline-block text-left z-50 cursor-pointer"
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
@@ -112,13 +117,13 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
       {isOpen && user && (
         <div className="absolute left-0 mt-1 w-48 origin-top-left bg-slate-800 rounded-md shadow-xl ring-1 ring-slate-700 border border-slate-700 focus:outline-none overflow-hidden">
           <div className="py-1 flex flex-col" role="menu">
-            <button 
+            <button
               onClick={logout}
               className="w-full text-left px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
             >
               Sign Out
             </button>
-            <button 
+            <button
               onClick={handleDeleteAccount}
               className="w-full text-left px-4 py-2 text-sm font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
             >
@@ -137,17 +142,27 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, setUser, clearUser } = useUserStore() as any; 
+  const { user, setUser, clearUser } = useUserStore() as any;
   const router = useRouter();
-  
+
   const [mounted, setMounted] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   // 1. Initial Session Fetch
   useEffect(() => {
     setMounted(true);
 
-    const token = localStorage.getItem('trainer_token');
-    
+    // FIX: Different parts of the app have historically written the auth
+    // token under different localStorage keys (trainer_token, access_token,
+    // token). Checking only 'trainer_token' meant sessions silently failed
+    // to restore whenever a login had only set the other two - which is
+    // exactly what was happening here. Check all three, same as the
+    // battle page's getTrainerToken() helper already does.
+    const token =
+      localStorage.getItem('trainer_token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token');
+
     if (token && !user) {
       fetch('https://pokeverse-backend1.onrender.com/api/users/me', {
         headers: {
@@ -160,12 +175,25 @@ export default function RootLayout({
       })
       .then(userData => {
         setUser(userData);
+        // Backfill any missing keys so every part of the app (battle page,
+        // delete-account, etc.) can find the token under whichever name
+        // it happens to look for.
+        localStorage.setItem('trainer_token', token);
+        localStorage.setItem('access_token', token);
+        localStorage.setItem('token', token);
       })
       .catch(err => {
         console.error("Failed to restore session:", err);
         localStorage.removeItem('trainer_token');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token');
         clearUser();
+      })
+      .finally(() => {
+        setSessionChecked(true);
       });
+    } else {
+      setSessionChecked(true);
     }
   }, [user, setUser, clearUser]);
 
@@ -187,7 +215,7 @@ export default function RootLayout({
       while (newXp >= currentThreshold) {
         newLevel += 1;
         newXp -= currentThreshold;
-        currentThreshold = newLevel * 100; 
+        currentThreshold = newLevel * 100;
       }
 
       // Update the user store
@@ -199,7 +227,7 @@ export default function RootLayout({
     };
 
     window.addEventListener('update-trainer-xp', handleXpUpdate as EventListener);
-    
+
     // Cleanup listener on unmount
     return () => {
       window.removeEventListener('update-trainer-xp', handleXpUpdate as EventListener);
@@ -217,6 +245,32 @@ export default function RootLayout({
   const currentLevel = user ? user.level : 1;
   const xpPercentage = Math.min(100, Math.max(0, (currentXP / xpThreshold) * 100));
 
+  // FIX: While we're still checking for an existing session, show a brief
+  // loading state instead of silently rendering as if logged out. Without
+  // this, a slow/cold-starting backend response looked identical to "no
+  // account exists", which is what led to re-registering unnecessarily.
+  if (mounted && !sessionChecked) {
+    const hasToken =
+      typeof window !== 'undefined' &&
+      (localStorage.getItem('trainer_token') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('token'));
+
+    if (hasToken) {
+      return (
+        <html lang="en">
+          <body>
+            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+              <div className="text-white font-mono text-sm animate-pulse">
+                Restoring your session...
+              </div>
+            </div>
+          </body>
+        </html>
+      );
+    }
+  }
+
   return (
     <html lang="en">
       <body>
@@ -224,42 +278,42 @@ export default function RootLayout({
           <nav className="sticky top-0 z-50 bg-slate-800 border-b-4 border-slate-700 shadow-lg">
             <div className="max-w-6xl mx-auto px-4 py-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                
+
                 {/* Left Side: User Info & Navigation */}
                 <div className="flex flex-wrap items-center gap-6">
-                  
+
                   <UserProfileDropdown user={user} logout={logout} />
 
                   {/* Desktop Navigation Tabs */}
                   <div className="hidden sm:flex items-center gap-6 border-l border-slate-600 pl-6">
                     <ExploreDropdown />
-                    
-                    <Link 
-                      href="/dashboard" 
+
+                    <Link
+                      href="/dashboard"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>🎛️</span>
                       Dashboard
                     </Link>
 
-                    <Link 
-                      href="/pokedex" 
+                    <Link
+                      href="/pokedex"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📖</span>
                       Pokédex
                     </Link>
 
-                    <Link 
-                      href="/quiz" 
+                    <Link
+                      href="/quiz"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>🎓</span>
                       Academy
                     </Link>
 
-                    <Link 
-                      href="/watch" 
+                    <Link
+                      href="/watch"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📺</span>
@@ -267,8 +321,8 @@ export default function RootLayout({
                     </Link>
 
                     {/* BATTLE ARENA LINK */}
-                    <Link 
-                      href="/battle" 
+                    <Link
+                      href="/battle"
                       className="flex items-center gap-2 text-red-400 hover:text-red-300 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>⚔️</span>
@@ -290,40 +344,40 @@ export default function RootLayout({
                       <span>{xpThreshold} XP</span>
                     </div>
                     <div className="h-4 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-700 shadow-inner">
-                      <div 
+                      <div
                         className="h-full bg-yellow-400 bg-stripes animate-stripes transition-all duration-700 ease-out"
                         style={{ width: `${xpPercentage}%` }}
                       />
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Mobile Navigation Tab */}
                 <div className="sm:hidden flex flex-wrap items-center gap-4 w-full mt-2">
                    <ExploreDropdown />
-                   <Link 
-                     href="/dashboard" 
+                   <Link
+                     href="/dashboard"
                      className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                    >
                      <span>🎛️</span>
                      Dashboard
                    </Link>
-                   <Link 
-                      href="/pokedex" 
+                   <Link
+                      href="/pokedex"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📖</span>
                       Pokédex
                     </Link>
-                    <Link 
-                      href="/quiz" 
+                    <Link
+                      href="/quiz"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>🎓</span>
                       Academy
                     </Link>
-                    <Link 
-                      href="/watch" 
+                    <Link
+                      href="/watch"
                       className="flex items-center gap-2 text-slate-300 hover:text-blue-400 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>📺</span>
@@ -331,8 +385,8 @@ export default function RootLayout({
                     </Link>
 
                     {/* BATTLE ARENA LINK - MOBILE */}
-                    <Link 
-                      href="/battle" 
+                    <Link
+                      href="/battle"
                       className="flex items-center gap-2 text-red-400 hover:text-red-300 font-black uppercase tracking-widest text-sm transition-colors"
                     >
                       <span>⚔️</span>
