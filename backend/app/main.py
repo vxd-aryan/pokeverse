@@ -560,6 +560,226 @@ POKEMON_BATTLE_POOL = [
             {"id": "d_m3", "name": "Fire Punch", "type": "Fire", "power": 20},
             {"id": "d_m4", "name": "Extreme Speed", "type": "Normal", "power": 25}
         ]
+    },
+    {
+        "name": "Blaziken",
+        "hp": 135,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/257.png",
+        "moves": [
+            {"id": "bz_m1", "name": "Blaze Kick", "type": "Fire", "power": 30},
+            {"id": "bz_m2", "name": "Sky Uppercut", "type": "Fighting", "power": 25},
+            {"id": "bz_m3", "name": "Flare Blitz", "type": "Fire", "power": 45},
+            {"id": "bz_m4", "name": "Brave Bird", "type": "Flying", "power": 35}
+        ]
+    },
+    {
+        "name": "Sceptile",
+        "hp": 130,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/254.png",
+        "moves": [
+            {"id": "sc_m1", "name": "Leaf Blade", "type": "Grass", "power": 30},
+            {"id": "sc_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
+            {"id": "sc_m3", "name": "Giga Drain", "type": "Grass", "power": 20},
+            {"id": "sc_m4", "name": "Aerial Ace", "type": "Flying", "power": 20}
+        ]
+    },
+    {
+        "name": "Swampert",
+        "hp": 150,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/260.png",
+        "moves": [
+            {"id": "sw_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
+            {"id": "sw_m2", "name": "Earthquake", "type": "Ground", "power": 35},
+            {"id": "sw_m3", "name": "Ice Punch", "type": "Ice", "power": 20},
+            {"id": "sw_m4", "name": "Muddy Water", "type": "Water", "power": 25}
+        ]
+    },
+    {
+        "name": "Metagross",
+        "hp": 150,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/376.png",
+        "moves": [
+            {"id": "mg_m1", "name": "Meteor Mash", "type": "Steel", "power": 35},
+            {"id": "mg_m2", "name": "Zen Headbutt", "type": "Psychic", "power": 25},
+            {"id": "mg_m3", "name": "Earthquake", "type": "Ground", "power": 30},
+            {"id": "mg_m4", "name": "Hammer Arm", "type": "Fighting", "power": 30}
+        ]
+    },
+    {
+        "name": "Salamence",
+        "hp": 145,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/373.png",
+        "moves": [
+            {"id": "sal_m1", "name": "Dragon Claw", "type": "Dragon", "power": 30},
+            {"id": "sal_m2", "name": "Hydro Pump", "type": "Water", "power": 40},
+            {"id": "sal_m3", "name": "Fire Blast", "type": "Fire", "power": 35},
+            {"id": "sal_m4", "name": "Dragon Dance", "type": "Dragon", "power": 15}
+        ]
+    },
+    {
+        "name": "Tyranitar",
+        "hp": 150,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png",
+        "moves": [
+            {"id": "ty_m1", "name": "Crunch", "type": "Dark", "power": 30},
+            {"id": "ty_m2", "name": "Rock Slide", "type": "Rock", "power": 30},
+            {"id": "ty_m3", "name": "Earthquake", "type": "Ground", "power": 35},
+            {"id": "ty_m4", "name": "Stone Edge", "type": "Rock", "power": 40}
+        ]
+    },
+    {
+        "name": "Umbreon",
+        "hp": 135,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/197.png",
+        "moves": [
+            {"id": "um_m1", "name": "Dark Pulse", "type": "Dark", "power": 30},
+            {"id": "um_m2", "name": "Foul Play", "type": "Dark", "power": 25},
+            {"id": "um_m3", "name": "Toxic", "type": "Poison", "power": 10},
+            {"id": "um_m4", "name": "Iron Tail", "type": "Steel", "power": 25}
+        ]
+    },
+    {
+        "name": "Espeon",
+        "hp": 120,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/196.png",
+        "moves": [
+            {"id": "es_m1", "name": "Psychic", "type": "Psychic", "power": 30},
+            {"id": "es_m2", "name": "Shadow Ball", "type": "Ghost", "power": 25},
+            {"id": "es_m3", "name": "Dazzling Gleam", "type": "Fairy", "power": 25},
+            {"id": "es_m4", "name": "Morning Sun", "type": "Normal", "power": 10}
+        ]
+    },
+    {
+        "name": "Alakazam",
+        "hp": 110,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/65.png",
+        "moves": [
+            {"id": "al_m1", "name": "Psychic", "type": "Psychic", "power": 35},
+            {"id": "al_m2", "name": "Focus Blast", "type": "Fighting", "power": 30},
+            {"id": "al_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
+            {"id": "al_m4", "name": "Dazzling Gleam", "type": "Fairy", "power": 25}
+        ]
+    },
+    {
+        "name": "Machamp",
+        "hp": 140,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/68.png",
+        "moves": [
+            {"id": "mc_m1", "name": "Close Combat", "type": "Fighting", "power": 40},
+            {"id": "mc_m2", "name": "Rock Slide", "type": "Rock", "power": 25},
+            {"id": "mc_m3", "name": "Stone Edge", "type": "Rock", "power": 35},
+            {"id": "mc_m4", "name": "Payback", "type": "Dark", "power": 20}
+        ]
+    },
+    {
+        "name": "Gyarados",
+        "hp": 145,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png",
+        "moves": [
+            {"id": "gy_m1", "name": "Waterfall", "type": "Water", "power": 30},
+            {"id": "gy_m2", "name": "Earthquake", "type": "Ground", "power": 30},
+            {"id": "gy_m3", "name": "Ice Fang", "type": "Ice", "power": 25},
+            {"id": "gy_m4", "name": "Dragon Dance", "type": "Dragon", "power": 15}
+        ]
+    },
+    {
+        "name": "Rayquaza",
+        "hp": 155,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/384.png",
+        "moves": [
+            {"id": "ray_m1", "name": "Dragon Ascent", "type": "Flying", "power": 45},
+            {"id": "ray_m2", "name": "Extreme Speed", "type": "Normal", "power": 25},
+            {"id": "ray_m3", "name": "Dragon Claw", "type": "Dragon", "power": 30},
+            {"id": "ray_m4", "name": "Fire Blast", "type": "Fire", "power": 35}
+        ]
+    },
+    {
+        "name": "Milotic",
+        "hp": 140,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/350.png",
+        "moves": [
+            {"id": "mi_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
+            {"id": "mi_m2", "name": "Ice Beam", "type": "Ice", "power": 25},
+            {"id": "mi_m3", "name": "Dazzling Gleam", "type": "Fairy", "power": 25},
+            {"id": "mi_m4", "name": "Recover", "type": "Normal", "power": 10}
+        ]
+    },
+    {
+        "name": "Infernape",
+        "hp": 130,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/392.png",
+        "moves": [
+            {"id": "inf_m1", "name": "Flare Blitz", "type": "Fire", "power": 40},
+            {"id": "inf_m2", "name": "Close Combat", "type": "Fighting", "power": 35},
+            {"id": "inf_m3", "name": "Mach Punch", "type": "Fighting", "power": 15},
+            {"id": "inf_m4", "name": "Flamethrower", "type": "Fire", "power": 30}
+        ]
+    },
+    {
+        "name": "Empoleon",
+        "hp": 140,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/395.png",
+        "moves": [
+            {"id": "emp_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
+            {"id": "emp_m2", "name": "Flash Cannon", "type": "Steel", "power": 25},
+            {"id": "emp_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
+            {"id": "emp_m4", "name": "Drill Peck", "type": "Flying", "power": 20}
+        ]
+    },
+    {
+        "name": "Torterra",
+        "hp": 150,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/389.png",
+        "moves": [
+            {"id": "tor_m1", "name": "Earthquake", "type": "Ground", "power": 35},
+            {"id": "tor_m2", "name": "Wood Hammer", "type": "Grass", "power": 40},
+            {"id": "tor_m3", "name": "Stone Edge", "type": "Rock", "power": 30},
+            {"id": "tor_m4", "name": "Crunch", "type": "Dark", "power": 25}
+        ]
+    },
+    {
+        "name": "Gardevoir",
+        "hp": 125,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/282.png",
+        "moves": [
+            {"id": "gar_m1", "name": "Moonblast", "type": "Fairy", "power": 30},
+            {"id": "gar_m2", "name": "Psychic", "type": "Psychic", "power": 30},
+            {"id": "gar_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
+            {"id": "gar_m4", "name": "Thunderbolt", "type": "Electric", "power": 20}
+        ]
+    },
+    {
+        "name": "Scizor",
+        "hp": 135,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/212.png",
+        "moves": [
+            {"id": "sci_m1", "name": "Bullet Punch", "type": "Steel", "power": 15},
+            {"id": "sci_m2", "name": "X-Scissor", "type": "Bug", "power": 30},
+            {"id": "sci_m3", "name": "Iron Head", "type": "Steel", "power": 30},
+            {"id": "sci_m4", "name": "Superpower", "type": "Fighting", "power": 35}
+        ]
+    },
+    {
+        "name": "Heatran",
+        "hp": 145,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/485.png",
+        "moves": [
+            {"id": "heat_m1", "name": "Magma Storm", "type": "Fire", "power": 35},
+            {"id": "heat_m2", "name": "Flash Cannon", "type": "Steel", "power": 25},
+            {"id": "heat_m3", "name": "Earth Power", "type": "Ground", "power": 30},
+            {"id": "heat_m4", "name": "Flamethrower", "type": "Fire", "power": 30}
+        ]
+    },
+    {
+        "name": "Darkrai",
+        "hp": 140,
+        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/491.png",
+        "moves": [
+            {"id": "dk_m1", "name": "Dark Pulse", "type": "Dark", "power": 35},
+            {"id": "dk_m2", "name": "Nasty Plot", "type": "Dark", "power": 15},
+            {"id": "dk_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
+            {"id": "dk_m4", "name": "Sludge Bomb", "type": "Poison", "power": 25}
+        ]
     }
 ]
 
@@ -576,6 +796,132 @@ def generate_random_battle_pokemon(user_id: str) -> dict:
     }
 
 
+# --- DYNAMIC ROSTER: ALL 1025 POKÉMON VIA POKEAPI ---
+# Hand-curating movesets for all 1025 species isn't practical to maintain, so
+# battles instead pull a random species (and a real, damaging moveset) live
+# from PokeAPI - the same data source already used for the quiz modules.
+# Results are cached in-process so repeat picks (very likely once a few
+# hundred battles have run) don't re-hit the network. POKEMON_BATTLE_POOL
+# above is kept as a fallback if PokeAPI is slow/unreachable, so a flaky
+# request never blocks someone from getting into a match.
+
+POKEMON_API_CACHE: Dict[int, dict] = {}
+MOVE_API_CACHE: Dict[str, dict] = {}
+
+
+def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
+    """Fetches (and caches) a species' name, HP, artwork, and move name list."""
+    cached = POKEMON_API_CACHE.get(pokemon_id)
+    if cached:
+        return cached
+    try:
+        res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=5).json()
+        name = res["name"].replace("-", " ").title()
+        hp_stat = next((s["base_stat"] for s in res["stats"] if s["stat"]["name"] == "hp"), 100)
+        # Scale base HP stat into the game's existing 90-160 battle-HP range
+        # so older/newer generations' differing stat scales still feel fair
+        # against each other and against the curated fallback roster.
+        hp = int(max(90, min(160, hp_stat * 1.4)))
+        sprite = (
+            res["sprites"]["other"]["official-artwork"]["front_default"]
+            or res["sprites"]["front_default"]
+        )
+        move_names = [m["move"]["name"] for m in res["moves"]]
+        data = {"name": name, "hp": hp, "sprite_url": sprite or "", "move_pool": move_names}
+        POKEMON_API_CACHE[pokemon_id] = data
+        return data
+    except Exception as e:
+        print(f"[Battle Roster] Failed to fetch pokemon {pokemon_id}: {e}")
+        return None
+
+
+def _fetch_move_detail(move_name: str) -> Optional[dict]:
+    """Fetches (and caches) a move's display name, type, and power. Returns
+    None for status/non-damaging moves (no power value) - the caller skips
+    these since this battle engine only deals direct damage."""
+    cached = MOVE_API_CACHE.get(move_name)
+    if cached is not None:
+        return cached if cached else None
+    try:
+        res = requests.get(f"https://pokeapi.co/api/v2/move/{move_name}", timeout=5).json()
+        power = res.get("power")
+        if not power:
+            MOVE_API_CACHE[move_name] = {}  # cache the "no power" result too
+            return None
+        move_type = res["type"]["name"].capitalize()
+        display_name = res["name"].replace("-", " ").title()
+        # Rescale PokeAPI's raw power (roughly 40-150) into this game's
+        # existing 15-45 damage range so battles stay a similar length
+        # whether a Pokémon came from the curated list or the live API.
+        scaled_power = int(max(15, min(45, power // 3)))
+        data = {"name": display_name, "type": move_type, "power": scaled_power}
+        MOVE_API_CACHE[move_name] = data
+        return data
+    except Exception as e:
+        print(f"[Battle Roster] Failed to fetch move {move_name}: {e}")
+        return None
+
+
+def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
+    """Attempts to build a battler from a random live PokeAPI species. Returns
+    None (triggering the static fallback) if the species can't be fetched or
+    doesn't yield at least 4 usable damaging moves within a bounded search."""
+    pokemon_id = random.randint(1, 1025)
+    base = _fetch_pokemon_base(pokemon_id)
+    if not base or not base["move_pool"]:
+        return None
+
+    candidates = base["move_pool"][:]
+    random.shuffle(candidates)
+
+    chosen_moves = []
+    # Bounded scan: enough to find 4 damaging moves for the vast majority of
+    # species without risking a very long chain of requests on a first-ever
+    # (uncached) pick of a Pokémon with an unusually move-list.
+    for mv_name in candidates[:30]:
+        if len(chosen_moves) >= 4:
+            break
+        detail = _fetch_move_detail(mv_name)
+        if detail:
+            chosen_moves.append(detail)
+
+    if len(chosen_moves) < 4:
+        return None
+
+    for idx, mv in enumerate(chosen_moves):
+        mv["id"] = f"api_{pokemon_id}_{idx}"
+
+    return {
+        "id": user_id,
+        "name": base["name"],
+        "current_hp": base["hp"],
+        "max_hp": base["hp"],
+        "sprite_url": base["sprite_url"],
+        "moves": chosen_moves,
+    }
+
+
+def generate_random_battle_pokemon_any(user_id: str) -> dict:
+    """Preferred entry point: tries the full 1025-species live roster first,
+    falling back to the curated 30-species static pool on any failure so a
+    PokeAPI hiccup never blocks matchmaking."""
+    try:
+        result = _build_battle_pokemon_from_api(user_id)
+        if result:
+            return result
+    except Exception as e:
+        print(f"[Battle Roster] Live roster generation failed, using fallback pool: {e}")
+    return generate_random_battle_pokemon(user_id)
+
+
+async def generate_random_battle_pokemon_async(user_id: str) -> dict:
+    """Runs the (blocking, requests-based) roster generation off the event
+    loop thread, since match creation happens inside async websocket
+    handlers and must not stall every other connected player's socket while
+    PokeAPI responds."""
+    return await asyncio.to_thread(generate_random_battle_pokemon_any, user_id)
+
+
 class BattleRoom:
     """
     status lifecycle:
@@ -585,27 +931,41 @@ class BattleRoom:
                      NOT rematch-eligible (there's no one left to agree)
     """
 
-    def __init__(self, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket):
+    def __init__(self, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket,
+                 p1_pokemon: dict, p2_pokemon: dict):
         self.room_id = room_id
 
         # Player 1 Setup
         self.p1_id = p1_id
         self.p1_ws = p1_ws
-        self.p1_pokemon = generate_random_battle_pokemon(p1_id)
+        self.p1_pokemon = p1_pokemon
 
         # Player 2 Setup
         self.p2_id = p2_id
         self.p2_ws = p2_ws
-        self.p2_pokemon = generate_random_battle_pokemon(p2_id)
-
-        if self.p2_pokemon["name"] == self.p1_pokemon["name"]:
-            self.p2_pokemon = generate_random_battle_pokemon(p2_id)
+        self.p2_pokemon = p2_pokemon
 
         self.turn = 1
         self.pending_actions: Dict[str, str] = {}
         self.rematch_votes: Set[str] = set()
         self.status = "ongoing"
         self.winner = None
+
+    @classmethod
+    async def create(cls, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket) -> "BattleRoom":
+        """Async factory: builds both battlers (each may involve a live
+        PokeAPI fetch) before constructing the room, since __init__ can't
+        itself be async. Re-rolls player 2 a few times if they happen to
+        land on the same species as player 1."""
+        p1_pokemon = await generate_random_battle_pokemon_async(p1_id)
+        p2_pokemon = await generate_random_battle_pokemon_async(p2_id)
+
+        attempts = 0
+        while p2_pokemon["name"] == p1_pokemon["name"] and attempts < 5:
+            p2_pokemon = await generate_random_battle_pokemon_async(p2_id)
+            attempts += 1
+
+        return cls(room_id, p1_id, p1_ws, p2_id, p2_ws, p1_pokemon, p2_pokemon)
 
     def rebind_socket(self, user_id: str, websocket: WebSocket) -> None:
         """Points this player's slot at a fresh socket (e.g. after a page
@@ -721,11 +1081,13 @@ class BattleRoom:
             # SAME room object (rather than routing back through the global
             # matchmaker) so a rematch can never accidentally pair either
             # player with a different opponent.
-            self.p1_pokemon = generate_random_battle_pokemon(self.p1_id)
-            self.p2_pokemon = generate_random_battle_pokemon(self.p2_id)
+            self.p1_pokemon = await generate_random_battle_pokemon_async(self.p1_id)
+            self.p2_pokemon = await generate_random_battle_pokemon_async(self.p2_id)
 
-            if self.p2_pokemon["name"] == self.p1_pokemon["name"]:
-                self.p2_pokemon = generate_random_battle_pokemon(self.p2_id)
+            attempts = 0
+            while self.p2_pokemon["name"] == self.p1_pokemon["name"] and attempts < 5:
+                self.p2_pokemon = await generate_random_battle_pokemon_async(self.p2_id)
+                attempts += 1
 
             self.turn = 1
             self.pending_actions.clear()
@@ -871,7 +1233,7 @@ class BattleMatchmaker:
 
             # Collision-proof unique room ID
             room_id = f"arena_{uuid.uuid4().hex[:12]}"
-            room = BattleRoom(room_id, p1_id, p1_ws, user_id, websocket)
+            room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket)
             self.active_rooms[room_id] = room
 
             await room.broadcast_log(f"Match started! {room.p1_pokemon['name']} vs {room.p2_pokemon['name']}!")
