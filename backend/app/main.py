@@ -95,7 +95,7 @@ def generate_daily_gauntlet():
 
 # --- AUTHENTICATION ROUTES ---
 
-@app.post("/api/auth/register", response_model=schemas.UserResponse)
+@app.post("/api/auth/register")
 def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.User.email == user_data.email).first()
     if existing_user:
@@ -115,7 +115,17 @@ def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+
+    # FIX: Return the same minimal shape as /api/auth/login (message, email,
+    # username) instead of the full UserResponse model. The frontend's
+    # session-establishment logic extracts an identity token from exactly
+    # these fields after both register AND login - previously register
+    # returned a differently-shaped UserResponse object with no matching
+    # top-level field, so "Unable to establish user session from backend
+    # response" fired immediately after every successful registration, even
+    # though the account was created fine (which is why signing in right
+    # after always worked).
+    return {"message": "Registration successful", "email": new_user.email, "username": new_user.username}
 
 @app.post("/api/auth/login")
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
@@ -923,7 +933,7 @@ class BattleMatchmaker:
 
         asyncio.create_task(self._finalize_disconnect(user_id, room.room_id))
 
-    async def _finalize_disconnect(self, user_id: str, room_id: str, grace_seconds: float = 20.0) -> None:
+    async def _finalize_disconnect(self, user_id: str, room_id: str, grace_seconds: float = 45.0) -> None:
         await asyncio.sleep(grace_seconds)
 
         # Reconnected within the grace window (register_connection re-adds
