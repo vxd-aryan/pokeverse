@@ -41,8 +41,8 @@ const POKEMON_DATABASE = GEN1_NAMES.map((name, index) => ({
 }));
 
 const BASE_POKEMON_IDS = [
-  1, 4, 7, 10, 13, 16, 19, 21, 23, 25, 27, 29, 32, 35, 37, 39, 41, 43, 46, 48, 50, 
-  52, 54, 56, 58, 60, 63, 66, 69, 72, 74, 77, 79, 81, 83, 84, 86, 88, 90, 92, 96, 
+  1, 4, 7, 10, 13, 16, 19, 21, 23, 25, 27, 29, 32, 35, 37, 39, 41, 43, 46, 48, 50,
+  52, 54, 56, 58, 60, 63, 66, 69, 72, 74, 77, 79, 81, 83, 84, 86, 88, 90, 92, 96,
   98, 100, 102, 104, 108, 109, 111, 114, 116, 118, 120, 127, 129, 131, 133, 137, 138, 140, 142, 143, 147
 ];
 
@@ -215,15 +215,21 @@ function TrainerCard({
   currentAvatar,
   team,
   onAvatarClick,
+  onSlotClick,
+  onRemoveSlot,
 }: {
   user: any;
   currentAvatar: string | null;
   team: PokemonMember[];
   onAvatarClick: () => void;
+  onSlotClick: (index: number) => void;
+  onRemoveSlot: (index: number, e: React.MouseEvent) => void;
 }) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [hoveredBadgeIdx, setHoveredBadgeIdx] = useState<number | null>(null);
+  const [hoveredSlotIdx, setHoveredSlotIdx] = useState<number | null>(null);
   const level = user.level || 1;
   const earnedCount = BADGES.filter((b) => level >= b.level).length;
+  const rosterCount = team.filter(Boolean).length;
 
   return (
     <div className="trainer-card-frame rounded-[18px] p-2 mx-auto max-w-2xl shadow-2xl">
@@ -244,46 +250,98 @@ function TrainerCard({
         </div>
         <div className="mx-4 mt-2 border-b-2 border-[#2d5a3a]/30" />
 
-        {/* Body: team preview left, portrait right */}
-        <div className="flex items-start justify-between px-4 py-5 gap-4">
-          <div className="grid grid-cols-3 gap-2 flex-shrink-0">
-            {team.map((member, idx) => (
-              <div
-                key={idx}
-                className="trainer-team-slot w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
-              >
-                {member ? (
-                  <Image
-                    src={member.sprite}
-                    alt={member.name}
-                    width={40}
-                    height={40}
-                    className="object-contain image-pixelated"
-                  />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-[#2d5a3a]/20" />
-                )}
-              </div>
-            ))}
+        {/* Body: interactive team slots left, portrait right */}
+        <div className="px-4 pt-4 pb-2">
+          <div className="flex items-center justify-between mb-3">
+            <span className="pixel-font text-[9px] md:text-[10px] text-[#2d5a3a]">TEAM</span>
+            <span className="pixel-font text-[8px] md:text-[9px] text-[#2d5a3a]/70">{rosterCount}/6</span>
           </div>
 
-          <button
-            onClick={onAvatarClick}
-            className="trainer-portrait-ring relative w-24 h-24 md:w-28 md:h-28 rounded-full flex-shrink-0 flex items-center justify-center group"
-          >
-            {currentAvatar ? (
-              <img src={currentAvatar} alt="Trainer" className="w-[85%] h-[85%] object-contain image-pixelated" />
-            ) : (
-              <span className="pixel-font text-2xl text-[#1c3826]">{user.username?.charAt(0).toUpperCase()}</span>
-            )}
-            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <span className="text-white text-[9px] font-bold uppercase tracking-wider">Edit</span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="grid grid-cols-3 gap-3 md:gap-4">
+              {team.map((member, idx) => (
+                <div
+                  key={idx}
+                  className="group relative"
+                  onMouseEnter={() => setHoveredSlotIdx(idx)}
+                  onMouseLeave={() => setHoveredSlotIdx(null)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSlotClick(idx)}
+                    className={`trainer-team-slot w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-transform hover:scale-105 active:scale-95 ${
+                      member ? 'trainer-team-slot-filled' : 'trainer-team-slot-empty'
+                    }`}
+                  >
+                    {member ? (
+                      <Image
+                        src={member.sprite}
+                        alt={member.name}
+                        width={44}
+                        height={44}
+                        className="object-contain image-pixelated drop-shadow"
+                      />
+                    ) : (
+                      <span className="pixel-font text-[#2d5a3a]/40 text-base">+</span>
+                    )}
+                  </button>
+
+                  {member && (
+                    <>
+                      <span className="absolute -top-1 -right-1 bg-black/70 text-white text-[7px] font-mono px-1.5 py-0.5 rounded-full border border-white/30 pointer-events-none z-10">
+                        Lv{member.level}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => onRemoveSlot(idx, e)}
+                        className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-white/60 z-20"
+                        aria-label={`Remove ${member.name}`}
+                      >
+                        ×
+                      </button>
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-9 h-1 bg-black/30 rounded-full overflow-hidden pointer-events-none">
+                        <div
+                          className="h-full bg-[#4ade80] transition-all duration-500"
+                          style={{ width: `${member.xp % 100}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {hoveredSlotIdx === idx && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 whitespace-nowrap bg-[#20140a] border border-[#5a4326] rounded-lg px-2 py-1.5 shadow-xl pointer-events-none">
+                      {member ? (
+                        <>
+                          <p className="text-[10px] font-bold text-[#F2E9CF] uppercase">{member.name}</p>
+                          <p className="text-[8px] text-[#c9b28c] mt-0.5">Level {member.level} · tap to swap</p>
+                        </>
+                      ) : (
+                        <p className="text-[9px] font-bold text-[#F2E9CF] uppercase">+ Add Partner</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          </button>
+
+            <button
+              onClick={onAvatarClick}
+              className="trainer-portrait-ring relative w-24 h-24 md:w-28 md:h-28 rounded-full flex-shrink-0 flex items-center justify-center group"
+            >
+              {currentAvatar ? (
+                <img src={currentAvatar} alt="Trainer" className="w-[85%] h-[85%] object-contain image-pixelated" />
+              ) : (
+                <span className="pixel-font text-2xl text-[#1c3826]">{user.username?.charAt(0).toUpperCase()}</span>
+              )}
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="text-white text-[9px] font-bold uppercase tracking-wider">Edit</span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Badge strip */}
-        <div className="trainer-badge-strip px-4 py-3">
+        <div className="trainer-badge-strip px-4 py-3 mt-2">
           <div className="flex items-center justify-between mb-2">
             <span className="pixel-font text-[10px] md:text-xs text-white">BADGES</span>
             <span className="pixel-font text-[8px] md:text-[9px] text-white/70">{earnedCount}/{BADGES.length}</span>
@@ -296,8 +354,8 @@ function TrainerCard({
                 <div
                   key={badge.level}
                   className="relative flex-1"
-                  onMouseEnter={() => setHoveredIdx(idx)}
-                  onMouseLeave={() => setHoveredIdx(null)}
+                  onMouseEnter={() => setHoveredBadgeIdx(idx)}
+                  onMouseLeave={() => setHoveredBadgeIdx(null)}
                 >
                   <div
                     className={`trainer-badge-tile aspect-square rounded-lg flex items-center justify-center transition-all ${
@@ -308,7 +366,7 @@ function TrainerCard({
                     <Icon className={`w-5 h-5 md:w-7 md:h-7 ${earned ? '' : 'opacity-40 grayscale'}`} />
                   </div>
 
-                  {hoveredIdx === idx && (
+                  {hoveredBadgeIdx === idx && (
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-32 bg-[#20140a] border border-[#5a4326] rounded-lg p-2 shadow-xl text-center pointer-events-none">
                       <p className="text-[10px] font-bold text-[#F2E9CF]">{badge.name}</p>
                       <p className="text-[8px] text-[#c9b28c] mt-0.5">
@@ -339,7 +397,7 @@ export default function DashboardPage() {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastUserXp, setLastUserXp] = useState<number | null>(null);
-  
+
   const [loadedUsername, setLoadedUsername] = useState<string>('');
 
   useEffect(() => {
@@ -359,7 +417,7 @@ export default function DashboardPage() {
       setTeam(Array(6).fill(null));
       setLastUserXp(user.xp ?? 0);
     }
-    
+
     setLoadedUsername(user.username);
   }, [user, router]);
 
@@ -371,7 +429,7 @@ export default function DashboardPage() {
 
       setTeam(prevTeam => {
         const activeMembersCount = prevTeam.filter(Boolean).length;
-        
+
         if (activeMembersCount === 0) {
           saveToDB({ last_user_xp: user.xp });
           setLastUserXp(user.xp);
@@ -381,10 +439,10 @@ export default function DashboardPage() {
         const xpPerPokemon = Math.floor(xpGained / activeMembersCount);
         const newTeam = prevTeam.map(member => {
           if (!member) return null;
-          
+
           let newXp = member.xp + xpPerPokemon;
           let newLevel = 5 + Math.floor(newXp / 100);
-          
+
           let currentId = member.currentId;
           let currentName = member.name;
           let currentSprite = member.sprite;
@@ -417,27 +475,27 @@ export default function DashboardPage() {
     }
   }, [user?.xp, lastUserXp, loadedUsername, user?.username]);
 
- const saveToDB = (updates: Record<string, any>) => {
-  if (!user || !user.username) return;
+  const saveToDB = (updates: Record<string, any>) => {
+    if (!user || !user.username) return;
 
-  try {
-    const rawData = localStorage.getItem('my_pokemon_users');
-    const usersDatabase = rawData ? JSON.parse(rawData) : {};
+    try {
+      const rawData = localStorage.getItem('my_pokemon_users');
+      const usersDatabase = rawData ? JSON.parse(rawData) : {};
 
-    usersDatabase[user.username] = {
-      ...(usersDatabase[user.username] || {}),
-      ...updates,
-    };
+      usersDatabase[user.username] = {
+        ...(usersDatabase[user.username] || {}),
+        ...updates,
+      };
 
-    localStorage.setItem('my_pokemon_users', JSON.stringify(usersDatabase));
-  } catch (error) {
-    console.error('Failed to save user data to localStorage:', error);
-  }
-};
+      localStorage.setItem('my_pokemon_users', JSON.stringify(usersDatabase));
+    } catch (error) {
+      console.error('Failed to save user data to localStorage:', error);
+    }
+  };
 
   const handleSelectPokemon = (basePokemon: any) => {
     if (activeSlot === null) return;
-    
+
     const newMember: PokemonMember = {
       baseId: basePokemon.id,
       currentId: basePokemon.id,
@@ -462,13 +520,16 @@ export default function DashboardPage() {
     saveToDB({ team: newTeam });
   };
 
+  const handleSlotClick = (index: number) => {
+    setActiveSlot(index);
+    setIsTeamModalOpen(true);
+  };
+
   const filteredPokemon = useMemo(() => {
-    return POKEMON_DATABASE.filter(p => 
+    return POKEMON_DATABASE.filter(p =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) && BASE_POKEMON_IDS.includes(p.id)
     );
   }, [searchQuery]);
-
-  const activePokemonCount = team.filter(Boolean).length;
 
   if (!user || user.username !== loadedUsername) return null;
 
@@ -482,57 +543,9 @@ export default function DashboardPage() {
           currentAvatar={currentAvatar}
           team={team}
           onAvatarClick={() => setIsModalOpen(true)}
+          onSlotClick={handleSlotClick}
+          onRemoveSlot={handleRemovePokemon}
         />
-
-        {/* ============ TEAM BUILDER ============ */}
-        <div className="felt-panel rounded-[28px] p-6 md:p-10 flex flex-col items-center relative overflow-hidden shadow-xl">
-          <div className="w-full flex flex-col md:flex-row items-center justify-between mb-8 border-b border-[#3c6653] pb-6 gap-4">
-            <div className="text-center md:text-left">
-              <h3 className="card-display text-2xl text-[#F2E9CF] tracking-wide mb-1">Active Party</h3>
-              <p className="text-[#9db8ac] text-xs font-bold tracking-[0.15em] uppercase">Roster: {activePokemonCount}/6 | XP Shared from Action Engine</p>
-            </div>
-            
-            <button 
-              onClick={() => {
-                const firstEmpty = team.findIndex(p => p === null);
-                if (firstEmpty !== -1) { setActiveSlot(firstEmpty); setIsTeamModalOpen(true); }
-              }}
-              disabled={activePokemonCount === 6}
-              className="bg-[#2a4d8f] hover:bg-[#345ca8] disabled:opacity-50 text-[#F1E8CE] px-5 py-2.5 rounded-full text-xs font-bold tracking-wider uppercase transition-colors border border-[#446bb3]"
-            >
-              + ADD PARTNER
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 w-full max-w-3xl">
-            {team.map((member, index) => (
-              <div key={index} onClick={() => { setActiveSlot(index); setIsTeamModalOpen(true); }} className={`team-slot relative rounded-2xl border-2 transition-all cursor-pointer group shadow-inner h-36 flex flex-col items-center justify-center ${member ? "bg-[#F1E8CE]/10 border-[#C9A84C] hover:bg-[#F1E8CE]/20" : "border-dashed border-[#3c6653] bg-white/5 hover:bg-white/10 hover:border-[#528a70]"}`}>
-                {member ? (
-                  <>
-                    <div className="absolute top-2 left-2 bg-black/60 px-2 py-0.5 rounded text-[9px] text-white font-mono border border-white/20 z-10">
-                      Lv.{member.level}
-                    </div>
-                    
-                    <div className="relative w-16 h-16 mb-4 group-hover:scale-110 transition-transform">
-                      <Image src={member.sprite} alt={member.name} width={64} height={64} priority className="object-contain drop-shadow-lg image-pixelated" />
-                    </div>
-                    
-                    <div className="absolute bottom-0 left-0 w-full bg-black/50 py-1.5 px-2 rounded-b-xl backdrop-blur-sm border-t border-white/10">
-                      <p className="text-[#F2E9CF] text-[10px] font-bold tracking-[0.1em] uppercase text-center mb-1">{member.name}</p>
-                      <div className="w-full bg-black/60 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-[#4ade80] h-full transition-all duration-500" style={{ width: `${(member.xp % 100)}%` }} />
-                      </div>
-                    </div>
-
-                    <button onClick={(e) => handleRemovePokemon(index, e)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity border-2 border-[#163229] z-20">×</button>
-                  </>
-                ) : (
-                  <span className="text-[#9db8ac] text-[10px] font-bold tracking-[0.2em] group-hover:text-[#F2E9CF]">SLOT 0{index + 1}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* ============ AVATAR MODAL ============ */}
@@ -559,10 +572,18 @@ export default function DashboardPage() {
       {isTeamModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c0906]/90 backdrop-blur-sm" onClick={() => setIsTeamModalOpen(false)}>
           <div className="modal-card w-full max-w-3xl h-[80vh] p-6 md:p-8 rounded-[24px] relative flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="text-center mb-6">
+            <div className="text-center mb-6 flex items-center justify-between">
               <h3 className="card-display text-2xl text-[#20242f]">Select a Base Partner</h3>
+              {activeSlot !== null && team[activeSlot] && (
+                <button
+                  onClick={(e) => { handleRemovePokemon(activeSlot, e); setIsTeamModalOpen(false); }}
+                  className="text-[11px] font-bold uppercase tracking-wider text-red-600 hover:text-red-700 border border-red-300 hover:bg-red-50 rounded-full px-3 py-1.5 transition-colors"
+                >
+                  Remove Current
+                </button>
+              )}
             </div>
-            <input 
+            <input
               type="text" placeholder="Search Database..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[#F7F1DE] border-2 border-[#d8cba5] rounded-xl px-4 py-3 mb-4 font-mono text-slate-800 focus:outline-none"
             />
@@ -592,7 +613,6 @@ export default function DashboardPage() {
         .card-stock { background: linear-gradient(180deg, #FBF6E7 0%, #F1E8CE 100%); }
         .avatar-ring { box-shadow: 0 0 0 3px #FBF6E7, 0 0 0 5px #C9A84C; }
         .type-pill { background: #2a4d8f; color: #F1E8CE; font-size: 10px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; }
-        .felt-panel { background: linear-gradient(180deg, #163229 0%, #101f19 100%); border: 1px solid #244638; }
         .modal-card { background: linear-gradient(180deg, #FBF6E7 0%, #F1E8CE 100%); border: 1px solid #d8cba5; }
         .type-toggle { background: #EDE3C8; color: #8a6a2f; border: 1px solid #d8cba5; }
         .type-toggle-active-boy { background: #2a4d8f; color: #F1E8CE; }
@@ -636,7 +656,7 @@ export default function DashboardPage() {
           100% { background-position: -20% 0; }
         }
 
-        /* --- New unified Trainer Card --- */
+        /* --- Trainer Card --- */
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         .pixel-font { font-family: 'Press Start 2P', monospace; }
 
@@ -660,10 +680,30 @@ export default function DashboardPage() {
           border-radius: 6px;
           box-shadow: inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.25);
         }
+
+        /* Interactive team slots inside the trainer card */
         .trainer-team-slot {
-          background: rgba(255,255,255,0.35);
           border: 2px solid rgba(45,90,58,0.4);
+          cursor: pointer;
         }
+        .trainer-team-slot-empty {
+          background: rgba(255,255,255,0.28);
+          border-style: dashed;
+        }
+        .trainer-team-slot-empty:hover {
+          background: rgba(255,255,255,0.45);
+          border-color: rgba(45,90,58,0.7);
+        }
+        .trainer-team-slot-filled {
+          background: radial-gradient(circle, #fdfcf6 0%, #eef3e6 100%);
+          border-style: solid;
+          border-color: #2d5a3a;
+          box-shadow: 0 2px 0 rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.4);
+        }
+        .trainer-team-slot-filled:hover {
+          box-shadow: 0 3px 0 rgba(0,0,0,0.2), 0 0 8px -1px rgba(45,90,58,0.6), inset 0 0 0 1px rgba(255,255,255,0.5);
+        }
+
         .trainer-portrait-ring {
           background: radial-gradient(circle, #7bc98a 0%, #5aa86c 100%);
           border: 3px solid #2d5a3a;
