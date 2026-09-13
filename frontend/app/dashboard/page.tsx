@@ -210,68 +210,117 @@ const BADGES: BadgeDef[] = [
   { level: 40, name: "Radiant Zenith", blurb: "Awarded for reaching Level 40.", primary: "#facc15", secondary: "#fef9c3", icon: RadiantZenithIcon },
 ];
 
-function BadgeCase({ level }: { level: number }) {
+function TrainerCard({
+  user,
+  currentAvatar,
+  team,
+  onAvatarClick,
+}: {
+  user: any;
+  currentAvatar: string | null;
+  team: PokemonMember[];
+  onAvatarClick: () => void;
+}) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const level = user.level || 1;
   const earnedCount = BADGES.filter((b) => level >= b.level).length;
 
   return (
-    <div className="badge-case rounded-[28px] p-6 md:p-10 relative overflow-hidden shadow-xl">
-      <div className="w-full flex flex-col md:flex-row items-center justify-between mb-8 border-b border-[#5a4326] pb-6 gap-2">
-        <div className="text-center md:text-left">
-          <h3 className="card-display text-2xl text-[#F2E9CF] tracking-wide mb-1">Badge Case</h3>
-          <p className="text-[#c9b28c] text-xs font-bold tracking-[0.15em] uppercase">
-            {earnedCount}/{BADGES.length} Earned &middot; New badge every 5 levels
-          </p>
+    <div className="trainer-card-frame rounded-[18px] p-2 mx-auto max-w-2xl shadow-2xl">
+      <div className="trainer-card-stripes rounded-[12px] overflow-hidden relative">
+        {/* Header banner */}
+        <div className="flex items-center justify-between px-4 pt-4">
+          <div className="trainer-banner-plaque px-4 py-1.5">
+            <span className="pixel-font text-[11px] md:text-xs text-white tracking-wider">TRAINER CARD</span>
+          </div>
+          <span className="pixel-font text-[9px] md:text-[10px] text-[#2d5a3a]/70">LV.{level}</span>
         </div>
-      </div>
 
-      <div className="grid grid-cols-4 gap-4 md:gap-6 max-w-2xl mx-auto">
-        {BADGES.map((badge, idx) => {
-          const earned = level >= badge.level;
-          const Icon = badge.icon;
-          return (
-            <div
-              key={badge.level}
-              className="relative flex flex-col items-center"
-              onMouseEnter={() => setHoveredIdx(idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
-            >
+        {/* Name row */}
+        <div className="px-4 mt-4 flex items-center gap-2">
+          <span className="w-2.5 h-6 bg-[#4ade80] flex-shrink-0" />
+          <span className="pixel-font text-[10px] md:text-xs text-[#2d5a3a]">NAME</span>
+          <span className="pixel-font text-base md:text-xl text-[#1c3826] truncate">{user.username?.toUpperCase()}</span>
+        </div>
+        <div className="mx-4 mt-2 border-b-2 border-[#2d5a3a]/30" />
+
+        {/* Body: team preview left, portrait right */}
+        <div className="flex items-start justify-between px-4 py-5 gap-4">
+          <div className="grid grid-cols-3 gap-2 flex-shrink-0">
+            {team.map((member, idx) => (
               <div
-                className={`badge-slot relative w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-                  earned ? 'badge-slot-earned' : 'badge-slot-locked'
-                }`}
-                style={earned ? ({ '--badge-color': badge.primary } as React.CSSProperties) : undefined}
+                key={idx}
+                className="trainer-team-slot w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center"
               >
-                <Icon
-                  className={`w-9 h-9 md:w-11 md:h-11 ${earned ? '' : 'opacity-30 grayscale'}`}
-                />
-                {earned && <div className="badge-shine" />}
-                {!earned && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#c9b28c]/70">
-                      <path
-                        fill="currentColor"
-                        d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6-7h-1V8a5 5 0 0 0-10 0v2H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1zm-8-2a3 3 0 0 1 6 0v2H10V8z"
-                      />
-                    </svg>
-                  </div>
+                {member ? (
+                  <Image
+                    src={member.sprite}
+                    alt={member.name}
+                    width={40}
+                    height={40}
+                    className="object-contain image-pixelated"
+                  />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-[#2d5a3a]/20" />
                 )}
               </div>
-              <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-[#c9b28c] mt-2 text-center leading-tight">
-                Lv.{badge.level}
-              </span>
+            ))}
+          </div>
 
-              {hoveredIdx === idx && (
-                <div className="absolute bottom-full mb-2 z-20 w-36 bg-[#20140a] border border-[#5a4326] rounded-lg p-2 shadow-xl text-center pointer-events-none">
-                  <p className="text-[11px] font-bold text-[#F2E9CF]">{badge.name}</p>
-                  <p className="text-[9px] text-[#c9b28c] mt-0.5">
-                    {earned ? badge.blurb : `Reach Level ${badge.level} to unlock`}
-                  </p>
-                </div>
-              )}
+          <button
+            onClick={onAvatarClick}
+            className="trainer-portrait-ring relative w-24 h-24 md:w-28 md:h-28 rounded-full flex-shrink-0 flex items-center justify-center group"
+          >
+            {currentAvatar ? (
+              <img src={currentAvatar} alt="Trainer" className="w-[85%] h-[85%] object-contain image-pixelated" />
+            ) : (
+              <span className="pixel-font text-2xl text-[#1c3826]">{user.username?.charAt(0).toUpperCase()}</span>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span className="text-white text-[9px] font-bold uppercase tracking-wider">Edit</span>
             </div>
-          );
-        })}
+          </button>
+        </div>
+
+        {/* Badge strip */}
+        <div className="trainer-badge-strip px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="pixel-font text-[10px] md:text-xs text-white">BADGES</span>
+            <span className="pixel-font text-[8px] md:text-[9px] text-white/70">{earnedCount}/{BADGES.length}</span>
+          </div>
+          <div className="flex items-center justify-between gap-1.5 md:gap-2">
+            {BADGES.map((badge, idx) => {
+              const earned = level >= badge.level;
+              const Icon = badge.icon;
+              return (
+                <div
+                  key={badge.level}
+                  className="relative flex-1"
+                  onMouseEnter={() => setHoveredIdx(idx)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                >
+                  <div
+                    className={`trainer-badge-tile aspect-square rounded-lg flex items-center justify-center transition-all ${
+                      earned ? 'trainer-badge-tile-earned' : 'trainer-badge-tile-locked'
+                    }`}
+                    style={earned ? ({ '--badge-color': badge.primary } as React.CSSProperties) : undefined}
+                  >
+                    <Icon className={`w-5 h-5 md:w-7 md:h-7 ${earned ? '' : 'opacity-40 grayscale'}`} />
+                  </div>
+
+                  {hoveredIdx === idx && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-32 bg-[#20140a] border border-[#5a4326] rounded-lg p-2 shadow-xl text-center pointer-events-none">
+                      <p className="text-[10px] font-bold text-[#F2E9CF]">{badge.name}</p>
+                      <p className="text-[8px] text-[#c9b28c] mt-0.5">
+                        {earned ? badge.blurb : `Reach Level ${badge.level}`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -428,33 +477,12 @@ export default function DashboardPage() {
       <div className="max-w-4xl mx-auto space-y-12">
 
         {/* ============ THE TRAINER CARD ============ */}
-        <div className="foil-frame relative rounded-[28px] p-[3px] mx-auto max-w-2xl shadow-2xl">
-          <div className="card-stock relative rounded-[25px] px-6 md:px-8 pt-6 pb-5 overflow-hidden">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <div onClick={() => setIsModalOpen(true)} className="avatar-ring relative h-20 w-20 md:h-24 md:w-24 flex-shrink-0 rounded-full overflow-hidden cursor-pointer group bg-[#F7F1DE]">
-                  {currentAvatar ? (
-                    <img src={currentAvatar} alt="Trainer Avatar" className="w-full h-full object-contain p-2 image-pixelated" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center"><span className="card-display text-3xl text-[#8a6a2f] uppercase">{user.username.charAt(0)}</span></div>
-                  )}
-                  <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><span className="text-white text-[10px] font-bold uppercase tracking-wider">Edit</span></div>
-                </div>
-                <div className="min-w-0">
-                  <p className="card-label text-[10px] tracking-[0.25em] text-[#8a6a2f] mb-1">TRAINER CARD</p>
-                  <h1 className="card-display text-2xl md:text-3xl text-[#20242f] truncate leading-tight">{user.username}</h1>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="type-pill">{user.title || 'Novice'}</span>
-                    <span className="type-pill !bg-[#C9A84C] !text-[#14100c]">Total XP: {user.xp || 0}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============ GYM BADGE CASE ============ */}
-        <BadgeCase level={user.level || 1} />
+        <TrainerCard
+          user={user}
+          currentAvatar={currentAvatar}
+          team={team}
+          onAvatarClick={() => setIsModalOpen(true)}
+        />
 
         {/* ============ TEAM BUILDER ============ */}
         <div className="felt-panel rounded-[28px] p-6 md:p-10 flex flex-col items-center relative overflow-hidden shadow-xl">
@@ -606,6 +634,54 @@ export default function DashboardPage() {
         @keyframes badgeShineSweep {
           0% { background-position: 120% 0; }
           100% { background-position: -20% 0; }
+        }
+
+        /* --- New unified Trainer Card --- */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        .pixel-font { font-family: 'Press Start 2P', monospace; }
+
+        .trainer-card-frame {
+          background: #2b2b2b;
+          border: 3px solid #1a1a1a;
+        }
+        .trainer-card-stripes {
+          background-color: #a8dba8;
+          background-image: repeating-linear-gradient(
+            180deg,
+            rgba(255,255,255,0.18) 0px,
+            rgba(255,255,255,0.18) 6px,
+            transparent 6px,
+            transparent 12px
+          );
+        }
+        .trainer-banner-plaque {
+          background: linear-gradient(180deg, #5fb3e8 0%, #2f7fc4 100%);
+          border: 2px solid #1c4d78;
+          border-radius: 6px;
+          box-shadow: inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.25);
+        }
+        .trainer-team-slot {
+          background: rgba(255,255,255,0.35);
+          border: 2px solid rgba(45,90,58,0.4);
+        }
+        .trainer-portrait-ring {
+          background: radial-gradient(circle, #7bc98a 0%, #5aa86c 100%);
+          border: 3px solid #2d5a3a;
+          box-shadow: 0 3px 0 rgba(0,0,0,0.2);
+        }
+        .trainer-badge-strip {
+          background: linear-gradient(180deg, #4a9e5e 0%, #3a7d4a 100%);
+          border-top: 2px solid #2d5a3a;
+        }
+        .trainer-badge-tile-locked {
+          background: rgba(0,0,0,0.2);
+          border: 2px solid rgba(255,255,255,0.3);
+        }
+        .trainer-badge-tile-earned {
+          background: radial-gradient(circle, var(--badge-color) 0%, rgba(0,0,0,0.2) 130%);
+          border: 2px solid rgba(255,255,255,0.7);
+          color: #fff8e7;
+          box-shadow: 0 0 8px -1px var(--badge-color);
         }
       `}</style>
     </div>
