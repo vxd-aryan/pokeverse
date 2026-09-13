@@ -1685,25 +1685,37 @@ async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
                 
             action = parsed.get("action")
 
-            if action == "find_match":
-                selection = parsed.get("selection")  # {"pokemon_id": int, "moves": [move_key, ...]}
-                await matchmaker.join_queue(user_id, selection)
-            elif action == "cancel_search":
-                matchmaker.leave_queue(user_id)
-            elif action == "ping":
-                # FIX 2: Defeat the Render timeout (Do nothing, just acknowledge)
-                pass 
-            else:
-                room = matchmaker.find_room(user_id)
-                if room:
-                    if action == "use_move":
-                        move_id = parsed.get("moveId")
-                        await room.handle_action(user_id, move_id)
-                    elif action == "rematch":
-                        await room.handle_rematch(user_id)
-                    elif action == "exit":
-                        await room.handle_exit(user_id)
-                        matchmaker.remove_room(room.room_id)
+            try:
+                if action == "find_match":
+                    selection = parsed.get("selection")  # {"pokemon_id": int, "moves": [move_key, ...]}
+                    await matchmaker.join_queue(user_id, selection)
+                elif action == "cancel_search":
+                    matchmaker.leave_queue(user_id)
+                elif action == "ping":
+                    # FIX 2: Defeat the Render timeout (Do nothing, just acknowledge)
+                    pass
+                else:
+                    room = matchmaker.find_room(user_id)
+                    if room:
+                        if action == "use_move":
+                            move_id = parsed.get("moveId")
+                            await room.handle_action(user_id, move_id)
+                        elif action == "rematch":
+                            await room.handle_rematch(user_id)
+                        elif action == "exit":
+                            await room.handle_exit(user_id)
+                            matchmaker.remove_room(room.room_id)
+            except Exception as e:
+                # A bug in one turn's resolution (e.g. the damage formula
+                # hitting unexpected data) must NEVER crash the raw websocket
+                # loop - that would silently disconnect BOTH players in the
+                # room, which is exactly the "multiplayer keeps disconnecting"
+                # symptom this is guarding against. Log the full traceback
+                # server-side so the real cause is visible in Render logs,
+                # and keep the connection alive either way.
+                import traceback
+                print(f"[Battle Arena] Error handling action '{action}' for {user_id}: {e}")
+                traceback.print_exc()
 
     except WebSocketDisconnect:
         await matchmaker.disconnect(user_id)
