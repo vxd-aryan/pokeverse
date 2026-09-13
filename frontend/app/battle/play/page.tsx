@@ -483,13 +483,12 @@ export default function BattlePlayPage() {
   };
 
   // --- Team Builder Handlers ---
-  const handleSearchPokemon = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const runRosterSearch = async (query: string) => {
     setTeamBuilderError(null);
     setIsSearching(true);
     try {
       const res = await fetch(
-        `https://pokeverse-backend1.onrender.com/api/battle/roster/search?q=${encodeURIComponent(searchQuery)}`
+        `https://pokeverse-backend1.onrender.com/api/battle/roster/search?q=${encodeURIComponent(query)}`
       );
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
@@ -500,6 +499,27 @@ export default function BattlePlayPage() {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // Debounced live search: fires automatically ~300ms after the user stops
+  // typing, so suggestions appear without needing to press Search. Skipped
+  // entirely once a species is already selected (search UI is hidden then).
+  useEffect(() => {
+    if (selectedSpecies) return;
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      runRosterSearch(searchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, selectedSpecies]);
+
+  const handleSearchPokemon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await runRosterSearch(searchQuery.trim());
   };
 
   const handleSelectSpecies = async (pokemonId: number) => {
@@ -610,37 +630,50 @@ export default function BattlePlayPage() {
           )}
 
           {/* Search */}
-          <form onSubmit={handleSearchPokemon} className="flex gap-2 mb-4">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search a Pokémon by name..."
-              className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-red-400"
-            />
-            <button
-              type="submit"
-              disabled={isSearching}
-              className="bg-red-500 hover:bg-red-400 disabled:opacity-50 px-4 py-2 rounded-lg font-bold text-sm uppercase"
-            >
-              {isSearching ? '...' : 'Search'}
-            </button>
-          </form>
-
-          {/* Search Results */}
-          {searchResults.length > 0 && !selectedSpecies && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
-              {searchResults.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleSelectSpecies(p.id)}
-                  className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-left transition-colors"
-                >
-                  {p.name}
-                </button>
-              ))}
+          <form onSubmit={handleSearchPokemon} className="relative mb-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Start typing a Pokémon's name..."
+                autoComplete="off"
+                className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-red-400"
+              />
+              <button
+                type="submit"
+                disabled={isSearching}
+                className="bg-red-500 hover:bg-red-400 disabled:opacity-50 px-4 py-2 rounded-lg font-bold text-sm uppercase"
+              >
+                {isSearching ? '...' : 'Search'}
+              </button>
             </div>
-          )}
+
+            {/* Live suggestions dropdown - appears as the user types */}
+            {searchQuery.trim() && !selectedSpecies && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-72 overflow-y-auto">
+                {isSearching && searchResults.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-400 animate-pulse">Searching...</div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        handleSelectSpecies(p.id);
+                        setSearchQuery(p.name);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
+                    >
+                      {p.name}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-sm text-gray-500">No Pokémon found.</div>
+                )}
+              </div>
+            )}
+          </form>
 
           {/* Loading species detail */}
           {isLoadingSpecies && (
