@@ -146,6 +146,15 @@ export default function BattlePlayPage() {
   const [selectedMoveKeys, setSelectedMoveKeys] = useState<string[]>([]);
   const [teamBuilderError, setTeamBuilderError] = useState<string | null>(null);
 
+  // --- Battle Animation State ---
+  const [attackingSide, setAttackingSide] = useState<'mine' | 'theirs' | null>(null);
+  const [hitSide, setHitSide] = useState<'mine' | 'theirs' | null>(null);
+  const [isCritHit, setIsCritHit] = useState(false);
+  const [faintedSide, setFaintedSide] = useState<'mine' | 'theirs' | null>(null);
+  const [floatingDamage, setFloatingDamage] = useState<{ side: 'mine' | 'theirs'; amount: number; key: number } | null>(null);
+  const [battleBanner, setBattleBanner] = useState<{ text: string; key: number } | null>(null);
+  const lastProcessedLogIndexRef = useRef(0);
+
   // --- Refs ---
   const wsRef = useRef<WebSocket | null>(null);
   const phaseRef = useRef<UiPhase>('connecting');
@@ -165,6 +174,102 @@ export default function BattlePlayPage() {
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+
+  // --- Reset animation state at the start of a fresh match or rematch ---
+  useEffect(() => {
+    if (gameState?.turn === 1) {
+      setFaintedSide(null);
+      setHitSide(null);
+      setAttackingSide(null);
+      setIsCritHit(false);
+      setFloatingDamage(null);
+      setBattleBanner(null);
+      lastProcessedLogIndexRef.current = 0;
+    }
+  }, [gameState?.turn, gameState?.active_pokemon?.name, gameState?.opponent_pokemon?.name]);
+
+  // --- Parse newly-arrived battle log lines into visual animation cues ---
+  useEffect(() => {
+    if (!gameState) return;
+    const myName = gameState.active_pokemon.name;
+    const opponentName = gameState.opponent_pokemon.name;
+
+    const newEntries = logs.slice(lastProcessedLogIndexRef.current);
+    lastProcessedLogIndexRef.current = logs.length;
+
+    newEntries.forEach((entry) => {
+      const text = entry.text;
+
+      const usedMatch = text.match(/^(.+) used (.+)!$/);
+      if (usedMatch) {
+        const attacker = usedMatch[1];
+        const side: 'mine' | 'theirs' | null =
+          attacker === myName ? 'mine' : attacker === opponentName ? 'theirs' : null;
+        if (side) {
+          setAttackingSide(side);
+          setTimeout(() => setAttackingSide(null), 450);
+        }
+        return;
+      }
+
+      const critMatch = text.match(/^A critical hit!$/);
+      if (critMatch) {
+        setIsCritHit(true);
+        setBattleBanner({ text: 'Critical Hit!', key: Date.now() });
+        setTimeout(() => setBattleBanner(null), 900);
+        return;
+      }
+
+      const superMatch = text.match(/^It's super effective!$/);
+      if (superMatch) {
+        setBattleBanner({ text: 'Super Effective!', key: Date.now() });
+        setTimeout(() => setBattleBanner(null), 900);
+        return;
+      }
+
+      const notVeryMatch = text.match(/^It's not very effective\.\.\.$/);
+      if (notVeryMatch) {
+        setBattleBanner({ text: 'Not Very Effective...', key: Date.now() });
+        setTimeout(() => setBattleBanner(null), 900);
+        return;
+      }
+
+      const noEffectMatch = text.match(/^It had no effect on (.+)!$/);
+      if (noEffectMatch) {
+        setBattleBanner({ text: 'No Effect!', key: Date.now() });
+        setTimeout(() => setBattleBanner(null), 900);
+        return;
+      }
+
+      const damageMatch = text.match(/^(.+) took (\d+) damage!$/);
+      if (damageMatch) {
+        const defender = damageMatch[1];
+        const amount = parseInt(damageMatch[2], 10);
+        const side: 'mine' | 'theirs' | null =
+          defender === myName ? 'mine' : defender === opponentName ? 'theirs' : null;
+        if (side) {
+          setHitSide(side);
+          setFloatingDamage({ side, amount, key: Date.now() });
+          setTimeout(() => {
+            setHitSide(null);
+            setIsCritHit(false);
+          }, 450);
+          setTimeout(() => setFloatingDamage(null), 1000);
+        }
+        return;
+      }
+
+      const faintMatch = text.match(/^(.+) fainted!$/);
+      if (faintMatch) {
+        const fainter = faintMatch[1];
+        const side: 'mine' | 'theirs' | null =
+          fainter === myName ? 'mine' : fainter === opponentName ? 'theirs' : null;
+        if (side) {
+          setFaintedSide(side);
+        }
+      }
+    });
+  }, [logs, gameState]);
 
   // --- Broadcast XP Changes to the Top Navbar ---
   useEffect(() => {
@@ -579,7 +684,77 @@ export default function BattlePlayPage() {
         .animate-bob {
           animation: bob 3s infinite ease-in-out;
         }
+
+        @keyframes attackLungeRight {
+          0% { transform: translateX(0); }
+          40% { transform: translateX(-24px) scale(1.05); }
+          100% { transform: translateX(0); }
+        }
+        @keyframes attackLungeLeft {
+          0% { transform: translateX(0); }
+          40% { transform: translateX(24px) scale(1.05); }
+          100% { transform: translateX(0); }
+        }
+        .animate-attack-lunge-left {
+          animation: attackLungeRight 0.45s ease-in-out;
+        }
+        .animate-attack-lunge-right {
+          animation: attackLungeLeft 0.45s ease-in-out;
+        }
+
+        @keyframes hitShake {
+          0%, 100% { transform: translateX(0); filter: brightness(1); }
+          20% { transform: translateX(-6px); filter: brightness(2.2) saturate(0); }
+          40% { transform: translateX(6px); filter: brightness(2.2) saturate(0); }
+          60% { transform: translateX(-4px); filter: brightness(1.4); }
+          80% { transform: translateX(4px); filter: brightness(1.4); }
+        }
+        .animate-hit-shake {
+          animation: hitShake 0.45s ease-in-out;
+        }
+        .animate-hit-shake-crit {
+          animation: hitShake 0.45s ease-in-out 2;
+        }
+
+        @keyframes faintDrop {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; filter: grayscale(0); }
+          100% { transform: translateY(40px) rotate(8deg); opacity: 0; filter: grayscale(1); }
+        }
+        .animate-faint-drop {
+          animation: faintDrop 0.7s ease-in forwards;
+        }
+
+        @keyframes floatDamage {
+          0% { transform: translateY(0); opacity: 0; }
+          15% { opacity: 1; }
+          100% { transform: translateY(-40px); opacity: 0; }
+        }
+        .animate-float-damage {
+          animation: floatDamage 1s ease-out forwards;
+        }
+
+        @keyframes bannerPop {
+          0% { transform: scale(0.6) translateY(10px); opacity: 0; }
+          20% { transform: scale(1.1) translateY(0); opacity: 1; }
+          80% { transform: scale(1) translateY(0); opacity: 1; }
+          100% { transform: scale(1) translateY(-6px); opacity: 0; }
+        }
+        .animate-banner-pop {
+          animation: bannerPop 0.9s ease-out forwards;
+        }
       `}</style>
+
+      {/* Floating "Super Effective!" / "Critical Hit!" banner */}
+      {battleBanner && (
+        <div
+          key={battleBanner.key}
+          className="fixed top-1/3 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-banner-pop"
+        >
+          <span className="text-2xl md:text-4xl font-black uppercase tracking-wider text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            {battleBanner.text}
+          </span>
+        </div>
+      )}
 
       <div className="min-h-[calc(100vh-64px)] bg-[#1c2331] flex items-center justify-center p-4 font-mono select-none">
         
@@ -603,8 +778,24 @@ export default function BattlePlayPage() {
                       <img 
                         src={getPokemonSprite(gameState.opponent_pokemon, false)}
                         alt={gameState.opponent_pokemon.name}
-                        className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-40 h-40 object-contain drop-shadow-2xl ${phase === 'opponent_left' ? 'grayscale opacity-60' : 'animate-bob'}`}
+                        className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-40 h-40 object-contain drop-shadow-2xl ${
+                          phase === 'opponent_left' || faintedSide === 'theirs'
+                            ? faintedSide === 'theirs' ? 'animate-faint-drop' : 'grayscale opacity-60'
+                            : attackingSide === 'theirs'
+                            ? 'animate-attack-lunge-right'
+                            : hitSide === 'theirs'
+                            ? (isCritHit ? 'animate-hit-shake-crit' : 'animate-hit-shake')
+                            : 'animate-bob'
+                        }`}
                       />
+                      {floatingDamage && floatingDamage.side === 'theirs' && (
+                        <span
+                          key={floatingDamage.key}
+                          className="absolute top-1/4 left-1/2 -translate-x-1/2 text-2xl font-black text-red-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-damage pointer-events-none"
+                        >
+                          -{floatingDamage.amount}
+                        </span>
+                      )}
                     </div>
                     
                     {/* Opponent HP */}
@@ -636,8 +827,24 @@ export default function BattlePlayPage() {
                       <img 
                         src={getPokemonSprite(gameState.active_pokemon, true)}
                         alt={gameState.active_pokemon.name}
-                        className="absolute bottom-[20%] left-1/2 -translate-x-1/2 w-56 h-56 object-contain drop-shadow-2xl animate-bob"
+                        className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-56 h-56 object-contain drop-shadow-2xl ${
+                          faintedSide === 'mine'
+                            ? 'animate-faint-drop'
+                            : attackingSide === 'mine'
+                            ? 'animate-attack-lunge-left'
+                            : hitSide === 'mine'
+                            ? (isCritHit ? 'animate-hit-shake-crit' : 'animate-hit-shake')
+                            : 'animate-bob'
+                        }`}
                       />
+                      {floatingDamage && floatingDamage.side === 'mine' && (
+                        <span
+                          key={floatingDamage.key}
+                          className="absolute top-1/4 left-1/2 -translate-x-1/2 text-2xl font-black text-red-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] animate-float-damage pointer-events-none"
+                        >
+                          -{floatingDamage.amount}
+                        </span>
+                      )}
                     </div>
 
                     {/* Player HP Box */}
