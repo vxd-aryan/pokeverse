@@ -10,6 +10,7 @@ import json
 import time
 import uuid
 import asyncio
+import math
 
 # Corrected absolute imports using 'app.' prefix
 from app.database import get_db, engine
@@ -450,6 +451,115 @@ def submit_practice_quiz(
 
 # --- EXPANDED MULTIPLAYER BATTLE ARENA ENGINE ---
 
+# --- TYPE EFFECTIVENESS + AUTHENTIC DAMAGE FORMULA ---
+# Ports the same style of level-50 stat/damage math into this actually-
+# running battle system, so damage now depends on real Attack/Defense
+# stats, STAB, and type matchups instead of just subtracting a move's raw
+# power from HP.
+
+BATTLE_TYPES = [
+    "Normal", "Fire", "Water", "Grass", "Electric", "Ice",
+    "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug",
+    "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy"
+]
+
+TYPE_CHART: Dict[str, Dict[str, float]] = {atk: {defn: 1.0 for defn in BATTLE_TYPES} for atk in BATTLE_TYPES}
+
+
+def _set_type_eff(atk: str, defn: str, mult: float):
+    TYPE_CHART[atk][defn] = mult
+
+
+_set_type_eff("Normal", "Rock", 0.5); _set_type_eff("Normal", "Ghost", 0.0); _set_type_eff("Normal", "Steel", 0.5)
+_set_type_eff("Fire", "Fire", 0.5); _set_type_eff("Fire", "Water", 0.5); _set_type_eff("Fire", "Grass", 2.0); _set_type_eff("Fire", "Ice", 2.0); _set_type_eff("Fire", "Bug", 2.0); _set_type_eff("Fire", "Rock", 0.5); _set_type_eff("Fire", "Dragon", 0.5); _set_type_eff("Fire", "Steel", 2.0)
+_set_type_eff("Water", "Fire", 2.0); _set_type_eff("Water", "Water", 0.5); _set_type_eff("Water", "Grass", 0.5); _set_type_eff("Water", "Ground", 2.0); _set_type_eff("Water", "Rock", 2.0); _set_type_eff("Water", "Dragon", 0.5)
+_set_type_eff("Grass", "Fire", 0.5); _set_type_eff("Grass", "Water", 2.0); _set_type_eff("Grass", "Grass", 0.5); _set_type_eff("Grass", "Poison", 0.5); _set_type_eff("Grass", "Ground", 2.0); _set_type_eff("Grass", "Flying", 0.5); _set_type_eff("Grass", "Bug", 0.5); _set_type_eff("Grass", "Rock", 2.0); _set_type_eff("Grass", "Dragon", 0.5); _set_type_eff("Grass", "Steel", 0.5)
+_set_type_eff("Electric", "Water", 2.0); _set_type_eff("Electric", "Grass", 0.5); _set_type_eff("Electric", "Electric", 0.5); _set_type_eff("Electric", "Ground", 0.0); _set_type_eff("Electric", "Flying", 2.0); _set_type_eff("Electric", "Dragon", 0.5)
+_set_type_eff("Ice", "Fire", 0.5); _set_type_eff("Ice", "Water", 0.5); _set_type_eff("Ice", "Grass", 2.0); _set_type_eff("Ice", "Ice", 0.5); _set_type_eff("Ice", "Ground", 2.0); _set_type_eff("Ice", "Flying", 2.0); _set_type_eff("Ice", "Dragon", 2.0); _set_type_eff("Ice", "Steel", 0.5)
+_set_type_eff("Fighting", "Normal", 2.0); _set_type_eff("Fighting", "Ice", 2.0); _set_type_eff("Fighting", "Poison", 0.5); _set_type_eff("Fighting", "Flying", 0.5); _set_type_eff("Fighting", "Psychic", 0.5); _set_type_eff("Fighting", "Bug", 0.5); _set_type_eff("Fighting", "Rock", 2.0); _set_type_eff("Fighting", "Ghost", 0.0); _set_type_eff("Fighting", "Dark", 2.0); _set_type_eff("Fighting", "Steel", 2.0); _set_type_eff("Fighting", "Fairy", 0.5)
+_set_type_eff("Poison", "Grass", 2.0); _set_type_eff("Poison", "Poison", 0.5); _set_type_eff("Poison", "Ground", 0.5); _set_type_eff("Poison", "Rock", 0.5); _set_type_eff("Poison", "Ghost", 0.5); _set_type_eff("Poison", "Steel", 0.0); _set_type_eff("Poison", "Fairy", 2.0)
+_set_type_eff("Ground", "Fire", 2.0); _set_type_eff("Ground", "Grass", 0.5); _set_type_eff("Ground", "Electric", 2.0); _set_type_eff("Ground", "Poison", 2.0); _set_type_eff("Ground", "Flying", 0.0); _set_type_eff("Ground", "Bug", 0.5); _set_type_eff("Ground", "Rock", 2.0); _set_type_eff("Ground", "Steel", 2.0)
+_set_type_eff("Flying", "Grass", 2.0); _set_type_eff("Flying", "Electric", 0.5); _set_type_eff("Flying", "Fighting", 2.0); _set_type_eff("Flying", "Bug", 2.0); _set_type_eff("Flying", "Rock", 0.5); _set_type_eff("Flying", "Steel", 0.5)
+_set_type_eff("Psychic", "Fighting", 2.0); _set_type_eff("Psychic", "Poison", 2.0); _set_type_eff("Psychic", "Psychic", 0.5); _set_type_eff("Psychic", "Dark", 0.0); _set_type_eff("Psychic", "Steel", 0.5)
+_set_type_eff("Bug", "Fire", 0.5); _set_type_eff("Bug", "Grass", 2.0); _set_type_eff("Bug", "Fighting", 0.5); _set_type_eff("Bug", "Poison", 0.5); _set_type_eff("Bug", "Flying", 0.5); _set_type_eff("Bug", "Psychic", 2.0); _set_type_eff("Bug", "Ghost", 0.5); _set_type_eff("Bug", "Dark", 2.0); _set_type_eff("Bug", "Steel", 0.5); _set_type_eff("Bug", "Fairy", 0.5)
+_set_type_eff("Rock", "Fire", 2.0); _set_type_eff("Rock", "Ice", 2.0); _set_type_eff("Rock", "Fighting", 0.5); _set_type_eff("Rock", "Ground", 0.5); _set_type_eff("Rock", "Flying", 2.0); _set_type_eff("Rock", "Bug", 2.0); _set_type_eff("Rock", "Steel", 0.5)
+_set_type_eff("Ghost", "Normal", 0.0); _set_type_eff("Ghost", "Psychic", 2.0); _set_type_eff("Ghost", "Ghost", 2.0); _set_type_eff("Ghost", "Dark", 0.5)
+_set_type_eff("Dragon", "Dragon", 2.0); _set_type_eff("Dragon", "Steel", 0.5); _set_type_eff("Dragon", "Fairy", 0.0)
+_set_type_eff("Dark", "Fighting", 0.5); _set_type_eff("Dark", "Psychic", 2.0); _set_type_eff("Dark", "Ghost", 2.0); _set_type_eff("Dark", "Dark", 0.5); _set_type_eff("Dark", "Fairy", 0.5)
+_set_type_eff("Steel", "Fire", 0.5); _set_type_eff("Steel", "Water", 0.5); _set_type_eff("Steel", "Electric", 0.5); _set_type_eff("Steel", "Ice", 2.0); _set_type_eff("Steel", "Rock", 2.0); _set_type_eff("Steel", "Steel", 0.5); _set_type_eff("Steel", "Fairy", 2.0)
+_set_type_eff("Fairy", "Fire", 0.5); _set_type_eff("Fairy", "Fighting", 2.0); _set_type_eff("Fairy", "Poison", 0.5); _set_type_eff("Fairy", "Dragon", 2.0); _set_type_eff("Fairy", "Dark", 2.0); _set_type_eff("Fairy", "Steel", 0.5)
+
+BATTLE_LEVEL = 50  # Champions-style: fixed level, no in-battle leveling; all stats are pre-computed from base stats.
+
+
+def _calc_level50_max_hp(base_hp: int) -> int:
+    if base_hp <= 1:
+        return 1  # Shedinja-style 1 HP species
+    iv, ev = 31, 84
+    return math.floor(0.01 * (2 * base_hp + iv + math.floor(0.25 * ev)) * BATTLE_LEVEL) + BATTLE_LEVEL + 10
+
+
+def _calc_level50_stat(base: int) -> int:
+    iv, ev = 31, 84
+    return math.floor(0.01 * (2 * base + iv + math.floor(0.25 * ev)) * BATTLE_LEVEL) + 5
+
+
+def _get_type_effectiveness(move_type: str, defender_types: List[str]) -> float:
+    row = TYPE_CHART.get(move_type, {})
+    mult = 1.0
+    for dt in defender_types:
+        mult *= row.get(dt, 1.0)
+    return mult
+
+
+def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
+    """Real Gen 6+ style damage formula: level, Attack/Defense (or
+    Sp.Atk/Sp.Def for special moves), STAB, type effectiveness, a critical
+    hit chance, and the usual 0.85-1.00 random roll - instead of just
+    subtracting the move's raw power from HP."""
+    power = move.get("power", 0)
+    if power <= 0:
+        return {"damage": 0, "effectiveness": 1.0, "critical": False}
+
+    is_physical = move.get("damage_class", "physical") == "physical"
+    attacker_stats = attacker.get("stats") or {}
+    defender_stats = defender.get("stats") or {}
+    atk_stat = attacker_stats.get("attack" if is_physical else "special-attack", 80)
+    def_stat = defender_stats.get("defense" if is_physical else "special-defense", 80)
+    def_stat = max(1, def_stat)  # guard against divide-by-zero on malformed data
+
+    move_type = move.get("type", "Normal")
+    defender_types = defender.get("types") or ["Normal"]
+    type_mult = _get_type_effectiveness(move_type, defender_types)
+
+    if type_mult == 0.0:
+        return {"damage": 0, "effectiveness": 0.0, "critical": False}
+
+    is_crit = random.random() < (1 / 16)  # Gen 6+ base crit rate
+    crit_mult = 1.5 if is_crit else 1.0
+
+    attacker_types = attacker.get("types") or []
+    stab = 1.5 if move_type in attacker_types else 1.0
+
+    random_mult = random.uniform(0.85, 1.00)
+
+    base_damage = math.floor((((2 * BATTLE_LEVEL) / 5 + 2) * power * (atk_stat / def_stat)) / 50) + 2
+    final_damage = math.floor(base_damage * crit_mult * stab * type_mult * random_mult)
+    final_damage = max(1, final_damage)
+
+    return {"damage": final_damage, "effectiveness": type_mult, "critical": is_crit}
+
+
+# Pre-Physical/Special-split-era types skewed physical; used only as a
+# fallback categorization for the curated static pool below, whose moves
+# don't come with a real damage_class from PokeAPI.
+_PHYSICAL_LEANING_TYPES = {"Normal", "Fighting", "Poison", "Ground", "Flying", "Bug", "Rock", "Ghost", "Steel"}
+
+
+def _infer_damage_class(move_type: str) -> str:
+    return "physical" if move_type in _PHYSICAL_LEANING_TYPES else "special"
+
+
 POKEMON_BATTLE_POOL = [
     {
         "name": "Pikachu",
@@ -783,16 +893,47 @@ POKEMON_BATTLE_POOL = [
     }
 ]
 
+_FALLBACK_STATS = {
+    "attack": _calc_level50_stat(80),
+    "defense": _calc_level50_stat(80),
+    "special-attack": _calc_level50_stat(80),
+    "special-defense": _calc_level50_stat(80),
+    "speed": _calc_level50_stat(80),
+}
+
+# Rough typing for the curated fallback roster, used only when PokeAPI is
+# unreachable - good enough for STAB/effectiveness on a rarely-hit path.
+_FALLBACK_TYPES = {
+    "Pikachu": ["Electric"], "Charizard": ["Fire", "Flying"], "Blastoise": ["Water"],
+    "Venusaur": ["Grass", "Poison"], "Gengar": ["Ghost", "Poison"], "Lucario": ["Fighting", "Steel"],
+    "Mewtwo": ["Psychic"], "Garchomp": ["Dragon", "Ground"], "Greninja": ["Water", "Dark"],
+    "Dragonite": ["Dragon", "Flying"], "Blaziken": ["Fire", "Fighting"], "Sceptile": ["Grass"],
+    "Swampert": ["Water", "Ground"], "Metagross": ["Steel", "Psychic"], "Salamence": ["Dragon", "Flying"],
+    "Tyranitar": ["Rock", "Dark"], "Umbreon": ["Dark"], "Espeon": ["Psychic"], "Alakazam": ["Psychic"],
+    "Machamp": ["Fighting"], "Gyarados": ["Water", "Flying"], "Rayquaza": ["Dragon", "Flying"],
+    "Milotic": ["Water"], "Infernape": ["Fire", "Fighting"], "Empoleon": ["Water", "Steel"],
+    "Torterra": ["Grass", "Ground"], "Gardevoir": ["Psychic", "Fairy"], "Scizor": ["Bug", "Steel"],
+    "Heatran": ["Fire", "Steel"], "Darkrai": ["Dark"],
+}
+
+
 def generate_random_battle_pokemon(user_id: str) -> dict:
     """Randomly selects a Pokémon from the pool and assigns the user ID."""
     template = random.choice(POKEMON_BATTLE_POOL)
+    moves = []
+    for m in template["moves"]:
+        mv = dict(m)
+        mv.setdefault("damage_class", _infer_damage_class(mv.get("type", "Normal")))
+        moves.append(mv)
     return {
         "id": user_id,
         "name": template["name"],
         "current_hp": template["hp"],
         "max_hp": template["hp"],
         "sprite_url": template["sprite_url"],
-        "moves": [dict(m) for m in template["moves"]]
+        "types": _FALLBACK_TYPES.get(template["name"], ["Normal"]),
+        "stats": _FALLBACK_STATS,
+        "moves": moves,
     }
 
 
@@ -810,24 +951,39 @@ MOVE_API_CACHE: Dict[str, dict] = {}
 
 
 def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
-    """Fetches (and caches) a species' name, HP, artwork, and move name list."""
+    """Fetches (and caches) a species' name, real level-50 stats, types,
+    artwork, and move name list."""
     cached = POKEMON_API_CACHE.get(pokemon_id)
     if cached:
         return cached
     try:
         res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=5).json()
         name = res["name"].replace("-", " ").title()
-        hp_stat = next((s["base_stat"] for s in res["stats"] if s["stat"]["name"] == "hp"), 100)
-        # Scale base HP stat into the game's existing 90-160 battle-HP range
-        # so older/newer generations' differing stat scales still feel fair
-        # against each other and against the curated fallback roster.
-        hp = int(max(90, min(160, hp_stat * 1.4)))
+        base_stats = {s["stat"]["name"]: s["base_stat"] for s in res["stats"]}
+        types = [t["type"]["name"].capitalize() for t in res["types"]]
+
+        max_hp = _calc_level50_max_hp(base_stats.get("hp", 80))
+        stats = {
+            "attack": _calc_level50_stat(base_stats.get("attack", 80)),
+            "defense": _calc_level50_stat(base_stats.get("defense", 80)),
+            "special-attack": _calc_level50_stat(base_stats.get("special-attack", 80)),
+            "special-defense": _calc_level50_stat(base_stats.get("special-defense", 80)),
+            "speed": _calc_level50_stat(base_stats.get("speed", 80)),
+        }
+
         sprite = (
             res["sprites"]["other"]["official-artwork"]["front_default"]
             or res["sprites"]["front_default"]
         )
         move_names = [m["move"]["name"] for m in res["moves"]]
-        data = {"name": name, "hp": hp, "sprite_url": sprite or "", "move_pool": move_names}
+        data = {
+            "name": name,
+            "hp": max_hp,
+            "types": types,
+            "stats": stats,
+            "sprite_url": sprite or "",
+            "move_pool": move_names,
+        }
         POKEMON_API_CACHE[pokemon_id] = data
         return data
     except Exception as e:
@@ -836,9 +992,10 @@ def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
 
 
 def _fetch_move_detail(move_name: str) -> Optional[dict]:
-    """Fetches (and caches) a move's display name, type, and power. Returns
-    None for status/non-damaging moves (no power value) - the caller skips
-    these since this battle engine only deals direct damage."""
+    """Fetches (and caches) a move's display name, type, real power, and
+    physical/special damage class. Returns None for status/non-damaging
+    moves (no power value) - the caller skips these since this battle
+    engine only deals direct damage."""
     cached = MOVE_API_CACHE.get(move_name)
     if cached is not None:
         return cached if cached else None
@@ -850,11 +1007,11 @@ def _fetch_move_detail(move_name: str) -> Optional[dict]:
             return None
         move_type = res["type"]["name"].capitalize()
         display_name = res["name"].replace("-", " ").title()
-        # Rescale PokeAPI's raw power (roughly 40-150) into this game's
-        # existing 15-45 damage range so battles stay a similar length
-        # whether a Pokémon came from the curated list or the live API.
-        scaled_power = int(max(15, min(45, power // 3)))
-        data = {"name": display_name, "type": move_type, "power": scaled_power}
+        damage_class = (res.get("damage_class") or {}).get("name", "physical")
+        # Real power is used directly now - the actual damage formula
+        # (level, stats, STAB, type effectiveness) handles scaling, so no
+        # artificial rescale is needed like before.
+        data = {"name": display_name, "type": move_type, "power": int(power), "damage_class": damage_class}
         MOVE_API_CACHE[move_name] = data
         return data
     except Exception as e:
@@ -897,6 +1054,8 @@ def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
         "current_hp": base["hp"],
         "max_hp": base["hp"],
         "sprite_url": base["sprite_url"],
+        "types": base["types"],
+        "stats": base["stats"],
         "moves": chosen_moves,
     }
 
@@ -1046,6 +1205,8 @@ def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]
         "current_hp": base["hp"],
         "max_hp": base["hp"],
         "sprite_url": base["sprite_url"],
+        "types": base["types"],
+        "stats": base["stats"],
         "moves": chosen_moves,
     }
 
@@ -1283,10 +1444,23 @@ class BattleRoom:
         p1_move = next((m for m in self.p1_pokemon["moves"] if m["id"] == p1_move_id), self.p1_pokemon["moves"][0])
         p2_move = next((m for m in self.p2_pokemon["moves"] if m["id"] == p2_move_id), self.p2_pokemon["moves"][0])
 
-        # Execute Player 1 Attack
-        p1_dmg = p1_move["power"]
-        self.p2_pokemon["current_hp"] = max(0, self.p2_pokemon["current_hp"] - p1_dmg)
-        await self.broadcast_log(f"{self.p1_pokemon['name']} used {p1_move['name']}! Dealt {p1_dmg} damage!")
+        # Execute Player 1 Attack - real damage formula (stats, STAB, type
+        # effectiveness, crit chance) instead of just subtracting raw power.
+        await self.broadcast_log(f"{self.p1_pokemon['name']} used {p1_move['name']}!")
+        p1_result = _calculate_move_damage(p1_move, self.p1_pokemon, self.p2_pokemon)
+        p1_dmg = p1_result["damage"]
+
+        if p1_result["effectiveness"] == 0.0:
+            await self.broadcast_log(f"It had no effect on {self.p2_pokemon['name']}!")
+        else:
+            self.p2_pokemon["current_hp"] = max(0, self.p2_pokemon["current_hp"] - p1_dmg)
+            if p1_result["critical"]:
+                await self.broadcast_log("A critical hit!")
+            if p1_result["effectiveness"] > 1.0:
+                await self.broadcast_log("It's super effective!")
+            elif p1_result["effectiveness"] < 1.0:
+                await self.broadcast_log("It's not very effective...")
+            await self.broadcast_log(f"{self.p2_pokemon['name']} took {p1_dmg} damage!")
 
         # Check if Player 2 Fainted
         if self.p2_pokemon["current_hp"] <= 0:
@@ -1298,9 +1472,21 @@ class BattleRoom:
             return
 
         # Execute Player 2 Attack
-        p2_dmg = p2_move["power"]
-        self.p1_pokemon["current_hp"] = max(0, self.p1_pokemon["current_hp"] - p2_dmg)
-        await self.broadcast_log(f"{self.p2_pokemon['name']} used {p2_move['name']}! Dealt {p2_dmg} damage!")
+        await self.broadcast_log(f"{self.p2_pokemon['name']} used {p2_move['name']}!")
+        p2_result = _calculate_move_damage(p2_move, self.p2_pokemon, self.p1_pokemon)
+        p2_dmg = p2_result["damage"]
+
+        if p2_result["effectiveness"] == 0.0:
+            await self.broadcast_log(f"It had no effect on {self.p1_pokemon['name']}!")
+        else:
+            self.p1_pokemon["current_hp"] = max(0, self.p1_pokemon["current_hp"] - p2_dmg)
+            if p2_result["critical"]:
+                await self.broadcast_log("A critical hit!")
+            if p2_result["effectiveness"] > 1.0:
+                await self.broadcast_log("It's super effective!")
+            elif p2_result["effectiveness"] < 1.0:
+                await self.broadcast_log("It's not very effective...")
+            await self.broadcast_log(f"{self.p1_pokemon['name']} took {p2_dmg} damage!")
 
         # Check if Player 1 Fainted
         if self.p1_pokemon["current_hp"] <= 0:
