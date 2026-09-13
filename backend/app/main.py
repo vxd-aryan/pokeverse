@@ -533,6 +533,8 @@ def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
     type_mult = _get_type_effectiveness(move_type, defender_types)
 
     if type_mult == 0.0:
+        print(f"[Damage Debug] {move.get('name')} ({move_type}) vs {defender.get('name')} "
+              f"types={defender_types} -> IMMUNE")
         return {"damage": 0, "effectiveness": 0.0, "critical": False}
 
     is_crit = random.random() < (1 / 16)  # Gen 6+ base crit rate
@@ -546,6 +548,14 @@ def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
     base_damage = math.floor((((2 * BATTLE_LEVEL) / 5 + 2) * power * (atk_stat / def_stat)) / 50) + 2
     final_damage = math.floor(base_damage * crit_mult * stab * type_mult * random_mult)
     final_damage = max(1, final_damage)
+
+    print(
+        f"[Damage Debug] {move.get('name')} ({move_type}, class={move.get('damage_class')}, power={power}) "
+        f"| attacker={attacker.get('name')} types={attacker_types} atk_stat={atk_stat} "
+        f"| defender={defender.get('name')} types={defender_types} def_stat={def_stat} "
+        f"| stab={stab} type_mult={type_mult} crit={is_crit} random={random_mult:.2f} "
+        f"| base_damage={base_damage} -> final={final_damage}"
+    )
 
     return {"damage": final_damage, "effectiveness": type_mult, "critical": is_crit}
 
