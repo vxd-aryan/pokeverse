@@ -188,87 +188,128 @@ export default function BattlePlayPage() {
     }
   }, [gameState?.turn, gameState?.active_pokemon?.name, gameState?.opponent_pokemon?.name]);
 
-  // --- Parse newly-arrived battle log lines into visual animation cues ---
+  const animationQueueRef = useRef<BattleLog[]>([]);
+  const isProcessingQueueRef = useRef(false);
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Plays out ONE log line's visual effect and waits for it to finish
+  // before the queue moves on - this is what creates the "attacker A's
+  // move, effect, and damage fully play out, THEN attacker B's turn
+  // begins" pacing, instead of both attacks' animations firing together.
+  const animateLogEntry = async (entry: BattleLog) => {
+    const text = entry.text;
+    const current = gameStateRef.current;
+    if (!current) return;
+    const myName = current.active_pokemon.name;
+    const opponentName = current.opponent_pokemon.name;
+
+    const usedMatch = text.match(/^(.+) used (.+)!$/);
+    if (usedMatch) {
+      const attacker = usedMatch[1];
+      const side: 'mine' | 'theirs' | null =
+        attacker === myName ? 'mine' : attacker === opponentName ? 'theirs' : null;
+      if (side) {
+        setAttackingSide(side);
+        await sleep(500);
+        setAttackingSide(null);
+        await sleep(150);
+      }
+      return;
+    }
+
+    if (text === 'A critical hit!') {
+      setIsCritHit(true);
+      setBattleBanner({ text: 'Critical Hit!', key: Date.now() });
+      await sleep(700);
+      setBattleBanner(null);
+      await sleep(150);
+      return;
+    }
+
+    if (text === "It's super effective!") {
+      setBattleBanner({ text: 'Super Effective!', key: Date.now() });
+      await sleep(700);
+      setBattleBanner(null);
+      await sleep(150);
+      return;
+    }
+
+    if (text === "It's not very effective...") {
+      setBattleBanner({ text: 'Not Very Effective...', key: Date.now() });
+      await sleep(700);
+      setBattleBanner(null);
+      await sleep(150);
+      return;
+    }
+
+    const noEffectMatch = text.match(/^It had no effect on (.+)!$/);
+    if (noEffectMatch) {
+      setBattleBanner({ text: 'No Effect!', key: Date.now() });
+      await sleep(700);
+      setBattleBanner(null);
+      await sleep(150);
+      return;
+    }
+
+    const damageMatch = text.match(/^(.+) took (\d+) damage!$/);
+    if (damageMatch) {
+      const defender = damageMatch[1];
+      const amount = parseInt(damageMatch[2], 10);
+      const side: 'mine' | 'theirs' | null =
+        defender === myName ? 'mine' : defender === opponentName ? 'theirs' : null;
+      if (side) {
+        setHitSide(side);
+        setFloatingDamage({ side, amount, key: Date.now() });
+        await sleep(600);
+        setHitSide(null);
+        setIsCritHit(false);
+        await sleep(300);
+        setFloatingDamage(null);
+        await sleep(250);
+      }
+      return;
+    }
+
+    const faintMatch = text.match(/^(.+) fainted!$/);
+    if (faintMatch) {
+      const fainter = faintMatch[1];
+      const side: 'mine' | 'theirs' | null =
+        fainter === myName ? 'mine' : fainter === opponentName ? 'theirs' : null;
+      if (side) {
+        setFaintedSide(side);
+        await sleep(900);
+      }
+      return;
+    }
+    // Non-battle-effect lines (queue status, rematch chatter, etc.) don't
+    // hold up the sequence.
+  };
+
+  const drainAnimationQueue = async () => {
+    isProcessingQueueRef.current = true;
+    while (animationQueueRef.current.length > 0) {
+      const entry = animationQueueRef.current.shift();
+      if (entry) {
+        await animateLogEntry(entry);
+      }
+    }
+    isProcessingQueueRef.current = false;
+  };
+
+  // --- Parse newly-arrived battle log lines and enqueue them for
+  // sequential playback, regardless of how quickly the websocket messages
+  // themselves arrived. ---
   useEffect(() => {
     if (!gameState) return;
-    const myName = gameState.active_pokemon.name;
-    const opponentName = gameState.opponent_pokemon.name;
-
     const newEntries = logs.slice(lastProcessedLogIndexRef.current);
     lastProcessedLogIndexRef.current = logs.length;
+    if (newEntries.length === 0) return;
 
-    newEntries.forEach((entry) => {
-      const text = entry.text;
-
-      const usedMatch = text.match(/^(.+) used (.+)!$/);
-      if (usedMatch) {
-        const attacker = usedMatch[1];
-        const side: 'mine' | 'theirs' | null =
-          attacker === myName ? 'mine' : attacker === opponentName ? 'theirs' : null;
-        if (side) {
-          setAttackingSide(side);
-          setTimeout(() => setAttackingSide(null), 450);
-        }
-        return;
-      }
-
-      const critMatch = text.match(/^A critical hit!$/);
-      if (critMatch) {
-        setIsCritHit(true);
-        setBattleBanner({ text: 'Critical Hit!', key: Date.now() });
-        setTimeout(() => setBattleBanner(null), 900);
-        return;
-      }
-
-      const superMatch = text.match(/^It's super effective!$/);
-      if (superMatch) {
-        setBattleBanner({ text: 'Super Effective!', key: Date.now() });
-        setTimeout(() => setBattleBanner(null), 900);
-        return;
-      }
-
-      const notVeryMatch = text.match(/^It's not very effective\.\.\.$/);
-      if (notVeryMatch) {
-        setBattleBanner({ text: 'Not Very Effective...', key: Date.now() });
-        setTimeout(() => setBattleBanner(null), 900);
-        return;
-      }
-
-      const noEffectMatch = text.match(/^It had no effect on (.+)!$/);
-      if (noEffectMatch) {
-        setBattleBanner({ text: 'No Effect!', key: Date.now() });
-        setTimeout(() => setBattleBanner(null), 900);
-        return;
-      }
-
-      const damageMatch = text.match(/^(.+) took (\d+) damage!$/);
-      if (damageMatch) {
-        const defender = damageMatch[1];
-        const amount = parseInt(damageMatch[2], 10);
-        const side: 'mine' | 'theirs' | null =
-          defender === myName ? 'mine' : defender === opponentName ? 'theirs' : null;
-        if (side) {
-          setHitSide(side);
-          setFloatingDamage({ side, amount, key: Date.now() });
-          setTimeout(() => {
-            setHitSide(null);
-            setIsCritHit(false);
-          }, 450);
-          setTimeout(() => setFloatingDamage(null), 1000);
-        }
-        return;
-      }
-
-      const faintMatch = text.match(/^(.+) fainted!$/);
-      if (faintMatch) {
-        const fainter = faintMatch[1];
-        const side: 'mine' | 'theirs' | null =
-          fainter === myName ? 'mine' : fainter === opponentName ? 'theirs' : null;
-        if (side) {
-          setFaintedSide(side);
-        }
-      }
-    });
+    animationQueueRef.current.push(...newEntries);
+    if (!isProcessingQueueRef.current) {
+      drainAnimationQueue();
+    }
   }, [logs, gameState]);
 
   // --- Broadcast XP Changes to the Top Navbar ---
