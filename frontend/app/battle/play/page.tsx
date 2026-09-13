@@ -38,11 +38,32 @@ interface BattleLog {
 // Local UI phase
 type UiPhase =
   | 'connecting'
+  | 'select_pokemon'
   | 'searching'
   | 'battling'
   | 'game_over'
   | 'opponent_left'
   | 'disconnected';
+
+interface RosterSearchResult {
+  id: number;
+  name: string;
+}
+
+interface RosterMoveOption {
+  move_key: string;
+  name: string;
+  type: string;
+  power: number;
+}
+
+interface RosterPokemonDetail {
+  id: number;
+  name: string;
+  hp: number;
+  sprite_url: string;
+  moves: RosterMoveOption[];
+}
 
 // --- Token Extraction Helper ---
 const getTrainerToken = (): string | null => {
@@ -115,6 +136,15 @@ export default function BattlePlayPage() {
   const [exitReason, setExitReason] = useState<string | null>(null);
   const [isWaitingForTurn, setIsWaitingForTurn] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(false);
+
+  // --- Team Builder State ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<RosterSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedSpecies, setSelectedSpecies] = useState<RosterPokemonDetail | null>(null);
+  const [isLoadingSpecies, setIsLoadingSpecies] = useState(false);
+  const [selectedMoveKeys, setSelectedMoveKeys] = useState<string[]>([]);
+  const [teamBuilderError, setTeamBuilderError] = useState<string | null>(null);
 
   // --- Refs ---
   const wsRef = useRef<WebSocket | null>(null);
@@ -196,9 +226,10 @@ export default function BattlePlayPage() {
           switch (data.type) {
             case 'connected':
               // Backend has registered this socket under the token-derived
-              // user_id. Now explicitly join matchmaking.
-              setPhase('searching');
-              ws.send(JSON.stringify({ action: 'find_match' }));
+              // user_id, and confirmed there's no battle already in progress
+              // for them. Let the player build their team before queueing,
+              // instead of auto-searching immediately.
+              setPhase('select_pokemon');
               break;
 
             case 'state_update':
@@ -305,6 +336,70 @@ export default function BattlePlayPage() {
     }
   };
 
+  // --- Team Builder Handlers ---
+  const handleSearchPokemon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamBuilderError(null);
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://pokeverse-backend1.onrender.com/api/battle/roster/search?q=${encodeURIComponent(searchQuery)}`
+      );
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Roster search failed:', err);
+      setTeamBuilderError('Could not search the Pokédex right now. Try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectSpecies = async (pokemonId: number) => {
+    setTeamBuilderError(null);
+    setIsLoadingSpecies(true);
+    setSelectedSpecies(null);
+    setSelectedMoveKeys([]);
+    try {
+      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/battle/roster/${pokemonId}`);
+      if (!res.ok) throw new Error('Failed to load Pokémon details');
+      const data: RosterPokemonDetail = await res.json();
+      setSelectedSpecies(data);
+    } catch (err) {
+      console.error('Failed to load species detail:', err);
+      setTeamBuilderError('Could not load that Pokémon\'s moves. Try another.');
+    } finally {
+      setIsLoadingSpecies(false);
+    }
+  };
+
+  const handleToggleMove = (moveKey: string) => {
+    setSelectedMoveKeys((prev) => {
+      if (prev.includes(moveKey)) {
+        return prev.filter((k) => k !== moveKey);
+      }
+      if (prev.length >= 4) return prev; // cap at 4 moves
+      return [...prev, moveKey];
+    });
+  };
+
+  const handleConfirmTeam = () => {
+    if (!selectedSpecies || selectedMoveKeys.length === 0) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    setPhase('searching');
+    wsRef.current.send(
+      JSON.stringify({
+        action: 'find_match',
+        selection: {
+          pokemon_id: selectedSpecies.id,
+          moves: selectedMoveKeys,
+        },
+      })
+    );
+  };
+
   const handleRematch = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'rematch' }));
@@ -348,6 +443,127 @@ export default function BattlePlayPage() {
           <button onClick={() => router.push('/battle')} className="bg-white text-black px-6 py-2 rounded font-bold hover:bg-gray-200">
             Return to Menu
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'select_pokemon') {
+    return (
+      <div className="min-h-[calc(100vh-64px)] bg-[#1c2331] text-white font-mono p-4">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-2xl font-black uppercase tracking-widest mb-1">Build Your Team</h1>
+          <p className="text-sm text-gray-400 mb-6">
+            Search any Pokémon, then pick up to 4 of its real moves before queueing for a match.
+          </p>
+
+          {teamBuilderError && (
+            <div className="bg-red-900/50 border border-red-500 text-red-200 text-sm rounded-lg p-3 mb-4">
+              {teamBuilderError}
+            </div>
+          )}
+
+          {/* Search */}
+          <form onSubmit={handleSearchPokemon} className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search a Pokémon by name..."
+              className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-red-400"
+            />
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="bg-red-500 hover:bg-red-400 disabled:opacity-50 px-4 py-2 rounded-lg font-bold text-sm uppercase"
+            >
+              {isSearching ? '...' : 'Search'}
+            </button>
+          </form>
+
+          {/* Search Results */}
+          {searchResults.length > 0 && !selectedSpecies && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+              {searchResults.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelectSpecies(p.id)}
+                  className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-left transition-colors"
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Loading species detail */}
+          {isLoadingSpecies && (
+            <div className="text-center text-sm text-gray-400 animate-pulse py-6">
+              Loading moves...
+            </div>
+          )}
+
+          {/* Selected Species + Move Picker */}
+          {selectedSpecies && (
+            <div className="bg-gray-800 border border-gray-600 rounded-xl p-4">
+              <div className="flex items-center gap-4 mb-4">
+                {selectedSpecies.sprite_url && (
+                  <img
+                    src={selectedSpecies.sprite_url}
+                    alt={selectedSpecies.name}
+                    className="w-20 h-20 object-contain"
+                  />
+                )}
+                <div>
+                  <h2 className="text-lg font-black uppercase">{selectedSpecies.name}</h2>
+                  <p className="text-xs text-gray-400">HP: {selectedSpecies.hp}</p>
+                  <button
+                    onClick={() => {
+                      setSelectedSpecies(null);
+                      setSelectedMoveKeys([]);
+                    }}
+                    className="text-xs text-red-400 hover:text-red-300 underline mt-1"
+                  >
+                    Choose a different Pokémon
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400 mb-2">
+                Pick up to 4 moves ({selectedMoveKeys.length}/4 selected):
+              </p>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {selectedSpecies.moves.map((move) => {
+                  const isSelected = selectedMoveKeys.includes(move.move_key);
+                  return (
+                    <button
+                      key={move.move_key}
+                      onClick={() => handleToggleMove(move.move_key)}
+                      disabled={!isSelected && selectedMoveKeys.length >= 4}
+                      className={`border-2 rounded-lg p-2 text-left transition-colors disabled:opacity-40 ${
+                        isSelected
+                          ? 'bg-red-500/20 border-red-400'
+                          : 'bg-gray-900 border-gray-700 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="font-bold text-sm">{move.name}</div>
+                      <div className="text-[10px] text-gray-400 uppercase">
+                        {move.type} · Power {move.power}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={handleConfirmTeam}
+                disabled={selectedMoveKeys.length === 0}
+                className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed py-3 rounded-xl font-black uppercase tracking-wide"
+              >
+                Confirm Team &amp; Find Match
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

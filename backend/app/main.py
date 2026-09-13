@@ -922,6 +922,138 @@ async def generate_random_battle_pokemon_async(user_id: str) -> dict:
     return await asyncio.to_thread(generate_random_battle_pokemon_any, user_id)
 
 
+# --- TEAM BUILDER: SEARCH + SPECIES DETAIL ---
+# Backs the pre-battle "pick your own Pokémon and moves" screen. Search is
+# a simple substring match over a one-time cached list of all species
+# names; the detail endpoint reuses the same base/move fetch+cache helpers
+# as the random-roster generator above.
+
+POKEMON_NAME_INDEX: List[Dict] = []
+
+
+def _ensure_name_index() -> List[Dict]:
+    global POKEMON_NAME_INDEX
+    if POKEMON_NAME_INDEX:
+        return POKEMON_NAME_INDEX
+    try:
+        res = requests.get("https://pokeapi.co/api/v2/pokemon?limit=1025", timeout=10).json()
+        index = []
+        for i, entry in enumerate(res.get("results", []), start=1):
+            index.append({"id": i, "name": entry["name"].replace("-", " ").title()})
+        POKEMON_NAME_INDEX = index
+    except Exception as e:
+        print(f"[Battle Roster] Failed to build name index: {e}")
+    return POKEMON_NAME_INDEX
+
+
+@app.get("/api/battle/roster/search")
+def search_battle_roster(q: str = ""):
+    index = _ensure_name_index()
+    query = q.strip().lower()
+    if not query:
+        return index[:20]
+    matches = [p for p in index if query in p["name"].lower()]
+    return matches[:20]
+
+
+@app.get("/api/battle/roster/{pokemon_id}")
+def get_battle_roster_pokemon(pokemon_id: int):
+    if not (1 <= pokemon_id <= 1025):
+        raise HTTPException(status_code=400, detail="Pokémon ID out of range.")
+
+    base = _fetch_pokemon_base(pokemon_id)
+    if not base:
+        raise HTTPException(status_code=404, detail="Could not load that Pokémon right now.")
+
+    candidates = base["move_pool"][:]
+    random.shuffle(candidates)
+
+    move_options = []
+    for mv_name in candidates[:40]:
+        if len(move_options) >= 20:
+            break
+        detail = _fetch_move_detail(mv_name)
+        if detail:
+            move_options.append({**detail, "move_key": mv_name})
+
+    return {
+        "id": pokemon_id,
+        "name": base["name"],
+        "hp": base["hp"],
+        "sprite_url": base["sprite_url"],
+        "moves": move_options,
+    }
+
+
+def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]) -> dict:
+    """Builds a battler from a player's pre-battle team-builder pick,
+    re-validating everything server-side against PokeAPI/cache data so a
+    tampered client payload can't inject fake move power or an out-of-range
+    species - only the pokemon_id and move_key names are trusted from the
+    client; every stat and move detail is re-derived from cached API data.
+    Falls back to the existing random generator if no selection was
+    provided, or if it fails validation entirely (e.g. bad species id)."""
+    if not selection:
+        return generate_random_battle_pokemon_any(user_id)
+
+    try:
+        pokemon_id = int(selection.get("pokemon_id"))
+    except (TypeError, ValueError):
+        return generate_random_battle_pokemon_any(user_id)
+
+    if not (1 <= pokemon_id <= 1025):
+        return generate_random_battle_pokemon_any(user_id)
+
+    base = _fetch_pokemon_base(pokemon_id)
+    if not base:
+        return generate_random_battle_pokemon_any(user_id)
+
+    requested_moves = selection.get("moves") or []
+    valid_move_pool = set(base["move_pool"])
+
+    chosen_moves = []
+    for mv_key in requested_moves:
+        if len(chosen_moves) >= 4:
+            break
+        if mv_key not in valid_move_pool:
+            continue  # reject anything not actually in this species' real movepool
+        detail = _fetch_move_detail(mv_key)
+        if detail:
+            chosen_moves.append(dict(detail))
+
+    # Pad up to 4 with other real damaging moves from the same species if
+    # the player picked fewer than 4 valid ones, so a battle never starts
+    # with an empty moveset.
+    if len(chosen_moves) < 4:
+        backfill_candidates = [m for m in base["move_pool"] if m not in requested_moves]
+        random.shuffle(backfill_candidates)
+        for mv_key in backfill_candidates:
+            if len(chosen_moves) >= 4:
+                break
+            detail = _fetch_move_detail(mv_key)
+            if detail:
+                chosen_moves.append(dict(detail))
+
+    if not chosen_moves:
+        return generate_random_battle_pokemon_any(user_id)
+
+    for idx, mv in enumerate(chosen_moves):
+        mv["id"] = f"sel_{pokemon_id}_{idx}"
+
+    return {
+        "id": user_id,
+        "name": base["name"],
+        "current_hp": base["hp"],
+        "max_hp": base["hp"],
+        "sprite_url": base["sprite_url"],
+        "moves": chosen_moves,
+    }
+
+
+async def build_battle_pokemon_from_selection_async(user_id: str, selection: Optional[dict]) -> dict:
+    return await asyncio.to_thread(_build_battle_pokemon_from_selection, user_id, selection)
+
+
 class BattleRoom:
     """
     status lifecycle:
@@ -932,18 +1064,21 @@ class BattleRoom:
     """
 
     def __init__(self, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket,
-                 p1_pokemon: dict, p2_pokemon: dict):
+                 p1_pokemon: dict, p2_pokemon: dict,
+                 p1_selection: Optional[dict] = None, p2_selection: Optional[dict] = None):
         self.room_id = room_id
 
         # Player 1 Setup
         self.p1_id = p1_id
         self.p1_ws = p1_ws
         self.p1_pokemon = p1_pokemon
+        self.p1_selection = p1_selection  # remembered so rematches reuse the same picked team
 
         # Player 2 Setup
         self.p2_id = p2_id
         self.p2_ws = p2_ws
         self.p2_pokemon = p2_pokemon
+        self.p2_selection = p2_selection
 
         self.turn = 1
         self.pending_actions: Dict[str, str] = {}
@@ -952,20 +1087,26 @@ class BattleRoom:
         self.winner = None
 
     @classmethod
-    async def create(cls, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket) -> "BattleRoom":
+    async def create(cls, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket,
+                      p1_selection: Optional[dict] = None, p2_selection: Optional[dict] = None) -> "BattleRoom":
         """Async factory: builds both battlers (each may involve a live
         PokeAPI fetch) before constructing the room, since __init__ can't
-        itself be async. Re-rolls player 2 a few times if they happen to
-        land on the same species as player 1."""
-        p1_pokemon = await generate_random_battle_pokemon_async(p1_id)
-        p2_pokemon = await generate_random_battle_pokemon_async(p2_id)
+        itself be async. If a player pre-built their team via the team
+        builder, that exact Pokémon/moveset is used (server-validated);
+        otherwise falls back to a random pick. Re-rolls player 2's random
+        pick a few times if it happens to match player 1's species - but
+        never overrides a deliberate, explicit selection."""
+        p1_pokemon = await build_battle_pokemon_from_selection_async(p1_id, p1_selection)
+        p2_pokemon = await build_battle_pokemon_from_selection_async(p2_id, p2_selection)
 
         attempts = 0
         while p2_pokemon["name"] == p1_pokemon["name"] and attempts < 5:
+            if p2_selection:
+                break  # respect a deliberate pick even if it matches p1's species
             p2_pokemon = await generate_random_battle_pokemon_async(p2_id)
             attempts += 1
 
-        return cls(room_id, p1_id, p1_ws, p2_id, p2_ws, p1_pokemon, p2_pokemon)
+        return cls(room_id, p1_id, p1_ws, p2_id, p2_ws, p1_pokemon, p2_pokemon, p1_selection, p2_selection)
 
     def rebind_socket(self, user_id: str, websocket: WebSocket) -> None:
         """Points this player's slot at a fresh socket (e.g. after a page
@@ -1080,12 +1221,18 @@ class BattleRoom:
             # Synchronized Battle Restart: both trainers agreed. Reuse this
             # SAME room object (rather than routing back through the global
             # matchmaker) so a rematch can never accidentally pair either
-            # player with a different opponent.
-            self.p1_pokemon = await generate_random_battle_pokemon_async(self.p1_id)
-            self.p2_pokemon = await generate_random_battle_pokemon_async(self.p2_id)
+            # player with a different opponent. Rebuild from each player's
+            # ORIGINAL team-builder selection (if they made one) so a
+            # deliberately-picked team persists across rematches instead of
+            # being randomized away - HP simply resets to full via a fresh
+            # build.
+            self.p1_pokemon = await build_battle_pokemon_from_selection_async(self.p1_id, self.p1_selection)
+            self.p2_pokemon = await build_battle_pokemon_from_selection_async(self.p2_id, self.p2_selection)
 
             attempts = 0
             while self.p2_pokemon["name"] == self.p1_pokemon["name"] and attempts < 5:
+                if self.p2_selection:
+                    break  # respect a deliberate pick even if it matches p1's species
                 self.p2_pokemon = await generate_random_battle_pokemon_async(self.p2_id)
                 attempts += 1
 
@@ -1182,7 +1329,7 @@ class BattleMatchmaker:
     """
 
     def __init__(self):
-        self.waiting_player: Optional[tuple[str, WebSocket]] = None
+        self.waiting_player: Optional[tuple[str, WebSocket, Optional[dict]]] = None
         self.active_rooms: Dict[str, BattleRoom] = {}
         self.active_connections: Dict[str, WebSocket] = {}
 
@@ -1206,8 +1353,11 @@ class BattleMatchmaker:
             })
             print(f"[Matchmaker] Registered socket for Trainer: {user_id}")
 
-    async def join_queue(self, user_id: str):
-        """Explicitly adds player to queue or matches them with a waiting opponent."""
+    async def join_queue(self, user_id: str, selection: Optional[dict] = None):
+        """Explicitly adds player to queue or matches them with a waiting
+        opponent. `selection` is the player's team-builder pick (species +
+        moves), if they made one via the pre-battle picker; None falls back
+        to a random battler for that player."""
         websocket = self.active_connections.get(user_id)
         if not websocket:
             return
@@ -1228,19 +1378,19 @@ class BattleMatchmaker:
             return
 
         if self.waiting_player and self.waiting_player[0] != user_id:
-            p1_id, p1_ws = self.waiting_player
+            p1_id, p1_ws, p1_selection = self.waiting_player
             self.waiting_player = None
 
             # Collision-proof unique room ID
             room_id = f"arena_{uuid.uuid4().hex[:12]}"
-            room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket)
+            room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket, p1_selection, selection)
             self.active_rooms[room_id] = room
 
             await room.broadcast_log(f"Match started! {room.p1_pokemon['name']} vs {room.p2_pokemon['name']}!")
             await room.broadcast_states()
             print(f"[Matchmaker] New room initialized: {room_id}")
         else:
-            self.waiting_player = (user_id, websocket)
+            self.waiting_player = (user_id, websocket, selection)
             try:
                 await websocket.send_json({
                     "type": "log",
@@ -1340,7 +1490,8 @@ async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
             action = parsed.get("action")
 
             if action == "find_match":
-                await matchmaker.join_queue(user_id)
+                selection = parsed.get("selection")  # {"pokemon_id": int, "moves": [move_key, ...]}
+                await matchmaker.join_queue(user_id, selection)
             elif action == "cancel_search":
                 matchmaker.leave_queue(user_id)
             elif action == "ping":
