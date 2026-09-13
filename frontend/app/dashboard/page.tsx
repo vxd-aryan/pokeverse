@@ -2,7 +2,7 @@
 
 import { useUserStore } from '@/store/userStore';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type ReactElement } from 'react';
 import Image from 'next/image';
 
 // --- STATIC GEN 1 DICTIONARY ---
@@ -90,6 +90,192 @@ type PokemonMember = {
   xp: number;
   level: number;
 } | null;
+
+// ============================================================
+// ORIGINAL BADGE CASE — custom badges, unlocked every 5 levels.
+// These are entirely original designs/names, not tied to any
+// existing game's gym badges.
+// ============================================================
+
+interface BadgeDef {
+  level: number;
+  name: string;
+  blurb: string;
+  primary: string;
+  secondary: string;
+  icon: (props: { className?: string }) => ReactElement;
+}
+
+const SparkEmblemIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path d="M22 6 L11 22 H18 L16 34 L29 16 H21 Z" fill="currentColor" />
+  </svg>
+);
+
+const LeafRingIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M20 8 C28 10 30 20 20 32 C10 20 12 10 20 8 Z"
+      fill="currentColor"
+    />
+    <path d="M20 12 V28" stroke="#0009" strokeWidth="1.5" />
+  </svg>
+);
+
+const TideShellIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M12 26 C12 16 16 10 20 10 C24 10 28 16 28 26 C24 23 16 23 12 26 Z"
+      fill="currentColor"
+    />
+    <circle cx="20" cy="17" r="2.2" fill="#0009" />
+  </svg>
+);
+
+const EmberCoreIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M20 8 C24 14 28 17 24 24 C26 22 27 20 27 20 C28 27 22 32 17 30 C12 28 12 22 15 19 C15 22 17 22 17 22 C15 17 17 11 20 8 Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const FrostShardIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path d="M20 7 L28 20 L20 33 L12 20 Z" fill="currentColor" />
+    <path d="M20 7 V33 M12 20 H28" stroke="#0009" strokeWidth="1" />
+  </svg>
+);
+
+const BastionSealIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M20 8 L31 14 V26 L20 32 L9 26 V14 Z"
+      fill="currentColor"
+    />
+    <path d="M20 8 V32 M9 14 L31 26 M31 14 L9 26" stroke="#0006" strokeWidth="1" />
+  </svg>
+);
+
+const NightwingCrestIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path
+      d="M20 12 C14 12 9 16 6 20 C11 20 15 22 18 26 C16 20 17 15 20 12 Z"
+      fill="currentColor"
+    />
+    <path
+      d="M20 12 C26 12 31 16 34 20 C29 20 25 22 22 26 C24 20 23 15 20 12 Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const RadiantZenithIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 40 40" className={className}>
+    <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
+    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
+    {Array.from({ length: 8 }).map((_, i) => {
+      const angle = (i * Math.PI) / 4;
+      const x = 20 + Math.cos(angle) * 12;
+      const y = 20 + Math.sin(angle) * 12;
+      return <circle key={i} cx={x} cy={y} r="2.4" fill="currentColor" />;
+    })}
+    <circle cx="20" cy="20" r="6" fill="currentColor" />
+  </svg>
+);
+
+const BADGES: BadgeDef[] = [
+  { level: 5, name: "Spark Emblem", blurb: "Awarded for reaching Level 5.", primary: "#eab308", secondary: "#fef08a", icon: SparkEmblemIcon },
+  { level: 10, name: "Leaf Ring", blurb: "Awarded for reaching Level 10.", primary: "#22c55e", secondary: "#bbf7d0", icon: LeafRingIcon },
+  { level: 15, name: "Tide Shell", blurb: "Awarded for reaching Level 15.", primary: "#0ea5e9", secondary: "#bae6fd", icon: TideShellIcon },
+  { level: 20, name: "Ember Core", blurb: "Awarded for reaching Level 20.", primary: "#f97316", secondary: "#fed7aa", icon: EmberCoreIcon },
+  { level: 25, name: "Frost Shard", blurb: "Awarded for reaching Level 25.", primary: "#22d3ee", secondary: "#cffafe", icon: FrostShardIcon },
+  { level: 30, name: "Bastion Seal", blurb: "Awarded for reaching Level 30.", primary: "#a8785a", secondary: "#e7d3c4", icon: BastionSealIcon },
+  { level: 35, name: "Nightwing Crest", blurb: "Awarded for reaching Level 35.", primary: "#a855f7", secondary: "#e9d5ff", icon: NightwingCrestIcon },
+  { level: 40, name: "Radiant Zenith", blurb: "Awarded for reaching Level 40.", primary: "#facc15", secondary: "#fef9c3", icon: RadiantZenithIcon },
+];
+
+function BadgeCase({ level }: { level: number }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const earnedCount = BADGES.filter((b) => level >= b.level).length;
+
+  return (
+    <div className="badge-case rounded-[28px] p-6 md:p-10 relative overflow-hidden shadow-xl">
+      <div className="w-full flex flex-col md:flex-row items-center justify-between mb-8 border-b border-[#5a4326] pb-6 gap-2">
+        <div className="text-center md:text-left">
+          <h3 className="card-display text-2xl text-[#F2E9CF] tracking-wide mb-1">Badge Case</h3>
+          <p className="text-[#c9b28c] text-xs font-bold tracking-[0.15em] uppercase">
+            {earnedCount}/{BADGES.length} Earned &middot; New badge every 5 levels
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4 md:gap-6 max-w-2xl mx-auto">
+        {BADGES.map((badge, idx) => {
+          const earned = level >= badge.level;
+          const Icon = badge.icon;
+          return (
+            <div
+              key={badge.level}
+              className="relative flex flex-col items-center"
+              onMouseEnter={() => setHoveredIdx(idx)}
+              onMouseLeave={() => setHoveredIdx(null)}
+            >
+              <div
+                className={`badge-slot relative w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  earned ? 'badge-slot-earned' : 'badge-slot-locked'
+                }`}
+                style={earned ? ({ '--badge-color': badge.primary } as React.CSSProperties) : undefined}
+              >
+                <Icon
+                  className={`w-9 h-9 md:w-11 md:h-11 ${earned ? '' : 'opacity-30 grayscale'}`}
+                />
+                {earned && <div className="badge-shine" />}
+                {!earned && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-[#c9b28c]/70">
+                      <path
+                        fill="currentColor"
+                        d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6-7h-1V8a5 5 0 0 0-10 0v2H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1zm-8-2a3 3 0 0 1 6 0v2H10V8z"
+                      />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-[#c9b28c] mt-2 text-center leading-tight">
+                Lv.{badge.level}
+              </span>
+
+              {hoveredIdx === idx && (
+                <div className="absolute bottom-full mb-2 z-20 w-36 bg-[#20140a] border border-[#5a4326] rounded-lg p-2 shadow-xl text-center pointer-events-none">
+                  <p className="text-[11px] font-bold text-[#F2E9CF]">{badge.name}</p>
+                  <p className="text-[9px] text-[#c9b28c] mt-0.5">
+                    {earned ? badge.blurb : `Reach Level ${badge.level} to unlock`}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { user } = useUserStore() as any;
@@ -267,6 +453,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ============ GYM BADGE CASE ============ */}
+        <BadgeCase level={user.level || 1} />
+
         {/* ============ TEAM BUILDER ============ */}
         <div className="felt-panel rounded-[28px] p-6 md:p-10 flex flex-col items-center relative overflow-hidden shadow-xl">
           <div className="w-full flex flex-col md:flex-row items-center justify-between mb-8 border-b border-[#3c6653] pb-6 gap-4">
@@ -383,6 +572,41 @@ export default function DashboardPage() {
         .avatar-pick { border: 2px solid #e3d6ae; cursor: pointer; }
         .avatar-pick:hover { border-color: #C9A84C; }
         .image-pixelated { image-rendering: pixelated; }
+
+        /* --- Badge Case --- */
+        .badge-case {
+          background: linear-gradient(180deg, #3a2412 0%, #241407 100%);
+          border: 1px solid #5a4326;
+        }
+        .badge-slot-locked {
+          background: radial-gradient(circle, #2a1c10 0%, #1a1108 100%);
+          border: 2px solid #4a3620;
+        }
+        .badge-slot-earned {
+          background: radial-gradient(circle, var(--badge-color) 0%, #1a1108 120%);
+          border: 2px solid var(--badge-color);
+          color: #fff8e7;
+          box-shadow: 0 0 12px -2px var(--badge-color), inset 0 0 8px rgba(255,255,255,0.25);
+        }
+        .badge-slot-locked svg { color: #4a3620; }
+        .badge-shine {
+          position: absolute;
+          inset: 0;
+          border-radius: 9999px;
+          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%);
+          background-size: 250% 250%;
+          background-position: 100% 0;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        .badge-slot-earned:hover .badge-shine {
+          opacity: 1;
+          animation: badgeShineSweep 1s ease-in-out;
+        }
+        @keyframes badgeShineSweep {
+          0% { background-position: 120% 0; }
+          100% { background-position: -20% 0; }
+        }
       `}</style>
     </div>
   );
