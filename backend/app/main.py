@@ -959,6 +959,42 @@ def generate_random_battle_pokemon(user_id: str) -> dict:
 POKEMON_API_CACHE: Dict[int, dict] = {}
 MOVE_API_CACHE: Dict[str, dict] = {}
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+_move_fetch_executor = ThreadPoolExecutor(max_workers=10)
+
+
+def _fetch_moves_concurrently(candidate_names: List[str], limit: int) -> List[dict]:
+    """Fetches move details for several candidate move names IN PARALLEL
+    instead of one-at-a-time. The old sequential version could take many
+    seconds (or stall on a slow/timed-out request) when scanning a species'
+    move list one HTTP call at a time - since that whole scan ran inside a
+    single asyncio.to_thread wrapper, one slow patch of requests blocked
+    the entire match-creation step with nothing sent back to either player,
+    which is the most likely cause of matches intermittently failing to
+    start after team selection. Fetching in parallel cuts worst-case
+    latency from "sum of N requests" down to roughly "the slowest single
+    request", so a couple of individual timeouts no longer compound into
+    one long stall."""
+    found: List[dict] = []
+    if not candidate_names:
+        return found
+
+    futures = {
+        _move_fetch_executor.submit(_fetch_move_detail, name): name for name in candidate_names
+    }
+    for future in as_completed(futures):
+        try:
+            detail = future.result()
+        except Exception as e:
+            print(f"[Battle Roster] Move fetch thread error: {e}")
+            detail = None
+        if detail:
+            found.append(detail)
+        if len(found) >= limit:
+            break
+    return found[:limit]
+
 
 def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
     """Fetches (and caches) a species' name, real level-50 stats, types,
@@ -1041,16 +1077,10 @@ def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
     candidates = base["move_pool"][:]
     random.shuffle(candidates)
 
-    chosen_moves = []
-    # Bounded scan: enough to find 4 damaging moves for the vast majority of
-    # species without risking a very long chain of requests on a first-ever
-    # (uncached) pick of a Pokémon with an unusually move-list.
-    for mv_name in candidates[:30]:
-        if len(chosen_moves) >= 4:
-            break
-        detail = _fetch_move_detail(mv_name)
-        if detail:
-            chosen_moves.append(detail)
+    # Bounded, PARALLEL scan: fetching moves concurrently instead of one at
+    # a time keeps a first-ever (uncached) pick of a move-heavy species from
+    # stalling match creation on a long chain of sequential requests.
+    chosen_moves = _fetch_moves_concurrently(candidates[:30], limit=4)
 
     if len(chosen_moves) < 4:
         return None
@@ -1137,13 +1167,17 @@ def get_battle_roster_pokemon(pokemon_id: int):
     candidates = base["move_pool"][:]
     random.shuffle(candidates)
 
+    move_details = _fetch_moves_concurrently(candidates[:40], limit=20)
+    # Re-attach move_key (the raw PokeAPI slug) needed later to validate a
+    # selection server-side - _fetch_moves_concurrently only returns the
+    # display-ready detail dicts, not which candidate name produced each.
     move_options = []
-    for mv_name in candidates[:40]:
-        if len(move_options) >= 20:
-            break
-        detail = _fetch_move_detail(mv_name)
-        if detail:
-            move_options.append({**detail, "move_key": mv_name})
+    for detail in move_details:
+        matched_key = next(
+            (name for name in candidates[:40] if name.replace('-', ' ').title() == detail["name"]),
+            detail["name"].lower().replace(' ', '-'),
+        )
+        move_options.append({**detail, "move_key": matched_key})
 
     return {
         "id": pokemon_id,
@@ -1180,15 +1214,11 @@ def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]
     requested_moves = selection.get("moves") or []
     valid_move_pool = set(base["move_pool"])
 
-    chosen_moves = []
-    for mv_key in requested_moves:
-        if len(chosen_moves) >= 4:
-            break
-        if mv_key not in valid_move_pool:
-            continue  # reject anything not actually in this species' real movepool
-        detail = _fetch_move_detail(mv_key)
-        if detail:
-            chosen_moves.append(dict(detail))
+    # Only fetch details for moves that are actually in this species' real
+    # movepool (rejects anything a tampered client tried to sneak in),
+    # fetched IN PARALLEL rather than one at a time.
+    valid_requested = [mv for mv in requested_moves if mv in valid_move_pool][:4]
+    chosen_moves = _fetch_moves_concurrently(valid_requested, limit=4)
 
     # Pad up to 4 with other real damaging moves from the same species if
     # the player picked fewer than 4 valid ones, so a battle never starts
@@ -1196,12 +1226,8 @@ def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]
     if len(chosen_moves) < 4:
         backfill_candidates = [m for m in base["move_pool"] if m not in requested_moves]
         random.shuffle(backfill_candidates)
-        for mv_key in backfill_candidates:
-            if len(chosen_moves) >= 4:
-                break
-            detail = _fetch_move_detail(mv_key)
-            if detail:
-                chosen_moves.append(dict(detail))
+        backfill_moves = _fetch_moves_concurrently(backfill_candidates[:20], limit=4 - len(chosen_moves))
+        chosen_moves.extend(backfill_moves)
 
     if not chosen_moves:
         return generate_random_battle_pokemon_any(user_id)
@@ -1267,8 +1293,14 @@ class BattleRoom:
         otherwise falls back to a random pick. Re-rolls player 2's random
         pick a few times if it happens to match player 1's species - but
         never overrides a deliberate, explicit selection."""
-        p1_pokemon = await build_battle_pokemon_from_selection_async(p1_id, p1_selection)
-        p2_pokemon = await build_battle_pokemon_from_selection_async(p2_id, p2_selection)
+        # Build both players' battlers CONCURRENTLY rather than one after
+        # the other - each build may involve several PokeAPI calls, so
+        # doing them sequentially could roughly double the worst-case wait
+        # (and doubled the chance of a slow network moment stalling things).
+        p1_pokemon, p2_pokemon = await asyncio.gather(
+            build_battle_pokemon_from_selection_async(p1_id, p1_selection),
+            build_battle_pokemon_from_selection_async(p2_id, p2_selection),
+        )
 
         attempts = 0
         while p2_pokemon["name"] == p1_pokemon["name"] and attempts < 5:
@@ -1577,14 +1609,38 @@ class BattleMatchmaker:
             p1_id, p1_ws, p1_selection = self.waiting_player
             self.waiting_player = None
 
-            # Collision-proof unique room ID
-            room_id = f"arena_{uuid.uuid4().hex[:12]}"
-            room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket, p1_selection, selection)
-            self.active_rooms[room_id] = room
+            try:
+                # Collision-proof unique room ID
+                room_id = f"arena_{uuid.uuid4().hex[:12]}"
+                room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket, p1_selection, selection)
+                self.active_rooms[room_id] = room
 
-            await room.broadcast_log(f"Match started! {room.p1_pokemon['name']} vs {room.p2_pokemon['name']}!")
-            await room.broadcast_states()
-            print(f"[Matchmaker] New room initialized: {room_id}")
+                await room.broadcast_log(f"Match started! {room.p1_pokemon['name']} vs {room.p2_pokemon['name']}!")
+                await room.broadcast_states()
+                print(f"[Matchmaker] New room initialized: {room_id}")
+            except Exception as e:
+                # Match creation can fail on a bad network moment (PokeAPI
+                # slow/unreachable while building either player's team).
+                # Without this, BOTH players were left silently stuck on
+                # "Searching..." forever with no room and no error message -
+                # exactly the intermittent "sometimes doesn't work" symptom.
+                # Instead: put player 1 back at the front of the queue (they
+                # don't lose their spot) and tell player 2 to retry.
+                import traceback
+                print(f"[Matchmaker] Room creation failed for {p1_id} vs {user_id}: {e}")
+                traceback.print_exc()
+
+                self.waiting_player = (p1_id, p1_ws, p1_selection)
+                try:
+                    await websocket.send_json({
+                        "type": "log",
+                        "log": {
+                            "text": "Match creation hit a snag - please press Find Match again.",
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    })
+                except Exception:
+                    pass
         else:
             self.waiting_player = (user_id, websocket, selection)
             try:

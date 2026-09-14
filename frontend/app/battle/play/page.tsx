@@ -145,6 +145,7 @@ export default function BattlePlayPage() {
   const [isLoadingSpecies, setIsLoadingSpecies] = useState(false);
   const [selectedMoveKeys, setSelectedMoveKeys] = useState<string[]>([]);
   const [teamBuilderError, setTeamBuilderError] = useState<string | null>(null);
+  const [searchTakingTooLong, setSearchTakingTooLong] = useState(false);
 
   // --- Battle Animation State ---
   const [attackingSide, setAttackingSide] = useState<'mine' | 'theirs' | null>(null);
@@ -187,6 +188,19 @@ export default function BattlePlayPage() {
       lastProcessedLogIndexRef.current = 0;
     }
   }, [gameState?.turn, gameState?.active_pokemon?.name, gameState?.opponent_pokemon?.name]);
+
+  // --- Stuck-search safety net ---
+  // If we've been sitting in 'searching' for an unusually long time, a
+  // backend hiccup during match creation may have left us with no room and
+  // no way to know it. Offer a manual retry rather than spinning forever.
+  useEffect(() => {
+    if (phase !== 'searching') {
+      setSearchTakingTooLong(false);
+      return;
+    }
+    const timeoutId = setTimeout(() => setSearchTakingTooLong(true), 15000);
+    return () => clearTimeout(timeoutId);
+  }, [phase]);
 
   const animationQueueRef = useRef<BattleLog[]>([]);
   const isProcessingQueueRef = useRef(false);
@@ -1097,6 +1111,19 @@ export default function BattlePlayPage() {
                   <p className="text-xl animate-pulse tracking-widest uppercase">
                     {logs.length > 0 ? logs[logs.length - 1].text : 'Entering Arena...'}
                   </p>
+                  {searchTakingTooLong && (
+                    <div className="flex flex-col items-center gap-2 pt-2">
+                      <p className="text-xs text-gray-400 normal-case tracking-normal text-center max-w-xs">
+                        This is taking longer than usual - the match server may have hit a snag.
+                      </p>
+                      <button
+                        onClick={handleConfirmTeam}
+                        className="bg-red-500 hover:bg-red-400 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide"
+                      >
+                        Retry Find Match
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
