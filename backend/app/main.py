@@ -1671,7 +1671,7 @@ class BattleMatchmaker:
             del self.active_rooms[room_id]
             print(f"[Matchmaker] Room {room_id} cleaned up.")
 
-    async def disconnect(self, user_id: str):
+    async def disconnect(self, user_id: str, websocket: WebSocket):
         """
         Handles a raw socket disconnect. Deliberately does NOT treat this the
         same as an explicit "exit" action: a socket can drop for reasons that
@@ -1685,11 +1685,28 @@ class BattleMatchmaker:
         is exactly the "instantly starts a new fight" bug. Instead we give a
         short grace window for the player to reconnect before finalizing the
         disconnect as a genuine exit.
+
+        IMPORTANT identity check: this coroutine is tied to ONE specific
+        socket. If the player already closed this connection and opened a
+        NEW one (e.g. exiting a finished battle, then immediately queueing
+        for another), the new socket's `register_connection` may finish and
+        overwrite `active_connections[user_id]` BEFORE this old socket's
+        disconnect gets processed by the event loop - the two are separate
+        coroutines and asyncio can interleave them in either order. Without
+        this check, an old, already-superseded disconnect would blindly
+        delete the entry pointing at the brand-new, perfectly-good
+        connection - after which every subsequent action from that (still
+        actually open) socket would silently find `active_connections.get
+        (user_id)` returning None and do nothing, which is exactly the
+        "stuck on Entering Arena forever" symptom this fixes.
         """
         self.leave_queue(user_id)
 
-        if self.active_connections.get(user_id):
+        if self.active_connections.get(user_id) is websocket:
             del self.active_connections[user_id]
+        else:
+            print(f"[Matchmaker] Ignoring stale disconnect for {user_id} - a newer connection is already active.")
+            return  # a newer connection has already taken over; nothing else to clean up
 
         room = self.find_room(user_id)
         if not room:
@@ -1774,5 +1791,5 @@ async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
                 traceback.print_exc()
 
     except WebSocketDisconnect:
-        await matchmaker.disconnect(user_id)
+        await matchmaker.disconnect(user_id, websocket)
         print(f"[Battle Arena] Trainer {user_id} disconnected.")
