@@ -93,8 +93,6 @@ type PokemonMember = {
 
 // ============================================================
 // ORIGINAL BADGE CASE — custom badges, unlocked every 5 levels.
-// These are entirely original designs/names, not tied to any
-// existing game's gym badges.
 // ============================================================
 
 interface BadgeDef {
@@ -118,10 +116,7 @@ const LeafRingIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 40 40" className={className}>
     <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
     <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path
-      d="M20 8 C28 10 30 20 20 32 C10 20 12 10 20 8 Z"
-      fill="currentColor"
-    />
+    <path d="M20 8 C28 10 30 20 20 32 C10 20 12 10 20 8 Z" fill="currentColor" />
     <path d="M20 12 V28" stroke="#0009" strokeWidth="1.5" />
   </svg>
 );
@@ -130,10 +125,7 @@ const TideShellIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 40 40" className={className}>
     <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
     <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path
-      d="M12 26 C12 16 16 10 20 10 C24 10 28 16 28 26 C24 23 16 23 12 26 Z"
-      fill="currentColor"
-    />
+    <path d="M12 26 C12 16 16 10 20 10 C24 10 28 16 28 26 C24 23 16 23 12 26 Z" fill="currentColor" />
     <circle cx="20" cy="17" r="2.2" fill="#0009" />
   </svg>
 );
@@ -142,10 +134,7 @@ const EmberCoreIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 40 40" className={className}>
     <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
     <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path
-      d="M20 8 C24 14 28 17 24 24 C26 22 27 20 27 20 C28 27 22 32 17 30 C12 28 12 22 15 19 C15 22 17 22 17 22 C15 17 17 11 20 8 Z"
-      fill="currentColor"
-    />
+    <path d="M20 8 C24 14 28 17 24 24 C26 22 27 20 27 20 C28 27 22 32 17 30 C12 28 12 22 15 19 C15 22 17 22 17 22 C15 17 17 11 20 8 Z" fill="currentColor" />
   </svg>
 );
 
@@ -162,10 +151,7 @@ const BastionSealIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 40 40" className={className}>
     <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
     <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path
-      d="M20 8 L31 14 V26 L20 32 L9 26 V14 Z"
-      fill="currentColor"
-    />
+    <path d="M20 8 L31 14 V26 L20 32 L9 26 V14 Z" fill="currentColor" />
     <path d="M20 8 V32 M9 14 L31 26 M31 14 L9 26" stroke="#0006" strokeWidth="1" />
   </svg>
 );
@@ -174,14 +160,8 @@ const NightwingCrestIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 40 40" className={className}>
     <circle cx="20" cy="20" r="18" fill="currentColor" opacity="0.15" />
     <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path
-      d="M20 12 C14 12 9 16 6 20 C11 20 15 22 18 26 C16 20 17 15 20 12 Z"
-      fill="currentColor"
-    />
-    <path
-      d="M20 12 C26 12 31 16 34 20 C29 20 25 22 22 26 C24 20 23 15 20 12 Z"
-      fill="currentColor"
-    />
+    <path d="M20 12 C14 12 9 16 6 20 C11 20 15 22 18 26 C16 20 17 15 20 12 Z" fill="currentColor" />
+    <path d="M20 12 C26 12 31 16 34 20 C29 20 25 22 22 26 C24 20 23 15 20 12 Z" fill="currentColor" />
   </svg>
 );
 
@@ -232,44 +212,49 @@ function TrainerCard({
   const rosterCount = team.filter(Boolean).length;
 
   return (
-    <div className="trainer-card-frame rounded-[18px] p-2 mx-auto max-w-2xl shadow-2xl">
-      <div className="trainer-card-stripes rounded-[12px] overflow-hidden relative">
+    <div className="trainer-card-frame rounded-[24px] p-[3px] mx-auto max-w-2xl shadow-2xl relative group">
+      <div className="absolute inset-0 rounded-[24px] bg-gradient-to-tr from-emerald-500/20 via-transparent to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+      <div className="trainer-card-stripes rounded-[20px] overflow-hidden relative shadow-inner">
+        
+        {/* Holographic overlay */}
+        <div className="absolute inset-0 holographic-sheen pointer-events-none mix-blend-overlay opacity-30" />
+
         {/* Header banner */}
-        <div className="flex items-center justify-between px-4 pt-4">
-          <div className="trainer-banner-plaque px-4 py-1.5">
-            <span className="pixel-font text-[11px] md:text-xs text-white tracking-wider">TRAINER CARD</span>
+        <div className="flex items-center justify-between px-5 pt-5 relative z-10">
+          <div className="trainer-banner-plaque px-4 py-1.5 backdrop-blur-md rounded-lg">
+            <span className="pixel-font text-[11px] md:text-xs text-emerald-50 tracking-wider">TRAINER CARD</span>
           </div>
-          <span className="pixel-font text-[9px] md:text-[10px] text-[#2d5a3a]/70">LV.{level}</span>
+          <span className="pixel-font text-[10px] md:text-[11px] text-emerald-200/80 drop-shadow-md">LV.{level}</span>
         </div>
 
         {/* Name row */}
-        <div className="px-4 mt-4 flex items-center gap-2">
-          <span className="w-2.5 h-6 bg-[#4ade80] flex-shrink-0" />
-          <span className="pixel-font text-[10px] md:text-xs text-[#2d5a3a]">NAME</span>
-          <span className="pixel-font text-base md:text-xl text-[#1c3826] truncate">{user.username?.toUpperCase()}</span>
+        <div className="px-5 mt-5 flex items-center gap-3 relative z-10">
+          <span className="w-2 h-6 bg-emerald-400 flex-shrink-0 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+          <span className="pixel-font text-[10px] md:text-xs text-emerald-200/70">NAME</span>
+          <span className="pixel-font text-base md:text-xl text-white tracking-widest truncate drop-shadow-lg">{user.username?.toUpperCase()}</span>
         </div>
-        <div className="mx-4 mt-2 border-b-2 border-[#2d5a3a]/30" />
+        <div className="mx-5 mt-3 border-b border-emerald-500/30 shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
 
         {/* Body: interactive team slots left, portrait right */}
-        <div className="px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
-            <span className="pixel-font text-[9px] md:text-[10px] text-[#2d5a3a]">TEAM</span>
-            <span className="pixel-font text-[8px] md:text-[9px] text-[#2d5a3a]/70">{rosterCount}/6</span>
+        <div className="px-5 pt-5 pb-3 relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <span className="pixel-font text-[10px] md:text-[11px] text-emerald-200/70">TEAM</span>
+            <span className="pixel-font text-[9px] md:text-[10px] text-emerald-200/50">{rosterCount}/6</span>
           </div>
 
           <div className="flex items-start justify-between gap-4">
-            <div className="grid grid-cols-3 gap-3 md:gap-4">
+            <div className="grid grid-cols-3 gap-3 md:gap-5">
               {team.map((member, idx) => (
                 <div
                   key={idx}
-                  className="group relative"
+                  className="group/slot relative"
                   onMouseEnter={() => setHoveredSlotIdx(idx)}
                   onMouseLeave={() => setHoveredSlotIdx(null)}
                 >
                   <button
                     type="button"
                     onClick={() => onSlotClick(idx)}
-                    className={`trainer-team-slot w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-transform hover:scale-105 active:scale-95 ${
+                    className={`trainer-team-slot w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 ${
                       member ? 'trainer-team-slot-filled' : 'trainer-team-slot-empty'
                     }`}
                   >
@@ -277,31 +262,31 @@ function TrainerCard({
                       <Image
                         src={member.sprite}
                         alt={member.name}
-                        width={44}
-                        height={44}
-                        className="object-contain image-pixelated drop-shadow"
+                        width={48}
+                        height={48}
+                        className="object-contain image-pixelated drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)] group-hover/slot:scale-110 transition-transform duration-300"
                       />
                     ) : (
-                      <span className="pixel-font text-[#2d5a3a]/40 text-base">+</span>
+                      <span className="pixel-font text-emerald-200/30 text-base drop-shadow-sm">+</span>
                     )}
                   </button>
 
                   {member && (
                     <>
-                      <span className="absolute -top-1 -right-1 bg-black/70 text-white text-[7px] font-mono px-1.5 py-0.5 rounded-full border border-white/30 pointer-events-none z-10">
+                      <span className="absolute -top-1.5 -right-1.5 bg-slate-900/90 text-emerald-300 text-[8px] font-mono px-1.5 py-0.5 rounded-full border border-emerald-500/50 shadow-lg pointer-events-none z-10">
                         Lv{member.level}
                       </span>
                       <button
                         type="button"
                         onClick={(e) => onRemoveSlot(idx, e)}
-                        className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-white/60 z-20"
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-red-500/90 hover:bg-red-500 text-white text-[12px] font-bold leading-none flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity border border-white/20 shadow-lg z-20"
                         aria-label={`Remove ${member.name}`}
                       >
                         ×
                       </button>
-                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-9 h-1 bg-black/30 rounded-full overflow-hidden pointer-events-none">
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-slate-900/80 rounded-full overflow-hidden pointer-events-none border border-slate-700/50">
                         <div
-                          className="h-full bg-[#4ade80] transition-all duration-500"
+                          className="h-full bg-emerald-400 transition-all duration-500 shadow-[0_0_5px_#34d399]"
                           style={{ width: `${member.xp % 100}%` }}
                         />
                       </div>
@@ -309,14 +294,14 @@ function TrainerCard({
                   )}
 
                   {hoveredSlotIdx === idx && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 whitespace-nowrap bg-[#20140a] border border-[#5a4326] rounded-lg px-2 py-1.5 shadow-xl pointer-events-none">
+                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-30 whitespace-nowrap bg-slate-900/95 backdrop-blur-sm border border-emerald-500/30 rounded-lg px-3 py-2 shadow-2xl pointer-events-none">
                       {member ? (
                         <>
-                          <p className="text-[10px] font-bold text-[#F2E9CF] uppercase">{member.name}</p>
-                          <p className="text-[8px] text-[#c9b28c] mt-0.5">Level {member.level} · tap to swap</p>
+                          <p className="text-[11px] font-bold text-emerald-100 uppercase tracking-wider">{member.name}</p>
+                          <p className="text-[9px] text-emerald-400/80 mt-0.5">Level {member.level} · tap to swap</p>
                         </>
                       ) : (
-                        <p className="text-[9px] font-bold text-[#F2E9CF] uppercase">+ Add Partner</p>
+                        <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-wide">+ Add Partner</p>
                       )}
                     </div>
                   )}
@@ -326,27 +311,29 @@ function TrainerCard({
 
             <button
               onClick={onAvatarClick}
-              className="trainer-portrait-ring relative w-24 h-24 md:w-28 md:h-28 rounded-full flex-shrink-0 flex items-center justify-center group"
+              className="trainer-portrait-ring relative w-24 h-24 md:w-28 md:h-28 rounded-full flex-shrink-0 flex items-center justify-center group/avatar transition-transform hover:scale-105"
             >
-              {currentAvatar ? (
-                <img src={currentAvatar} alt="Trainer" className="w-[85%] h-[85%] object-contain image-pixelated" />
-              ) : (
-                <span className="pixel-font text-2xl text-[#1c3826]">{user.username?.charAt(0).toUpperCase()}</span>
-              )}
-              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <span className="text-white text-[9px] font-bold uppercase tracking-wider">Edit</span>
+              <div className="absolute inset-1 bg-slate-900 rounded-full overflow-hidden flex items-center justify-center">
+                {currentAvatar ? (
+                  <img src={currentAvatar} alt="Trainer" className="w-[90%] h-[90%] object-contain image-pixelated drop-shadow-md" />
+                ) : (
+                  <span className="pixel-font text-3xl text-emerald-500/50">{user.username?.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="absolute inset-1 rounded-full bg-slate-900/60 backdrop-blur-sm opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center z-10 border border-emerald-400/50">
+                <span className="text-emerald-300 text-[10px] font-bold uppercase tracking-widest drop-shadow-md">Edit</span>
               </div>
             </button>
           </div>
         </div>
 
         {/* Badge strip */}
-        <div className="trainer-badge-strip px-4 py-3 mt-2">
-          <div className="flex items-center justify-between mb-2">
-            <span className="pixel-font text-[10px] md:text-xs text-white">BADGES</span>
-            <span className="pixel-font text-[8px] md:text-[9px] text-white/70">{earnedCount}/{BADGES.length}</span>
+        <div className="trainer-badge-strip px-5 py-4 mt-3 relative z-10">
+          <div className="flex items-center justify-between mb-3">
+            <span className="pixel-font text-[10px] md:text-[11px] text-emerald-100/90 drop-shadow-md">BADGES</span>
+            <span className="pixel-font text-[9px] md:text-[10px] text-emerald-200/50">{earnedCount}/{BADGES.length}</span>
           </div>
-          <div className="flex items-center justify-between gap-1.5 md:gap-2">
+          <div className="flex items-center justify-between gap-2 md:gap-3">
             {BADGES.map((badge, idx) => {
               const earned = level >= badge.level;
               const Icon = badge.icon;
@@ -358,19 +345,20 @@ function TrainerCard({
                   onMouseLeave={() => setHoveredBadgeIdx(null)}
                 >
                   <div
-                    className={`trainer-badge-tile aspect-square rounded-lg flex items-center justify-center transition-all ${
-                      earned ? 'trainer-badge-tile-earned' : 'trainer-badge-tile-locked'
+                    className={`trainer-badge-tile aspect-square rounded-xl flex items-center justify-center transition-all duration-300 ${
+                      earned ? 'trainer-badge-tile-earned hover:scale-110' : 'trainer-badge-tile-locked'
                     }`}
-                    style={earned ? ({ '--badge-color': badge.primary } as React.CSSProperties) : undefined}
+                    style={earned ? ({ '--badge-color': badge.primary, '--badge-glow': badge.secondary } as React.CSSProperties) : undefined}
                   >
-                    <Icon className={`w-5 h-5 md:w-7 md:h-7 ${earned ? '' : 'opacity-40 grayscale'}`} />
+                    <Icon className={`w-6 h-6 md:w-8 md:h-8 transition-all duration-300 ${earned ? 'drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]' : 'opacity-30 grayscale'}`} />
+                    {earned && <div className="badge-shine" />}
                   </div>
 
                   {hoveredBadgeIdx === idx && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 w-32 bg-[#20140a] border border-[#5a4326] rounded-lg p-2 shadow-xl text-center pointer-events-none">
-                      <p className="text-[10px] font-bold text-[#F2E9CF]">{badge.name}</p>
-                      <p className="text-[8px] text-[#c9b28c] mt-0.5">
-                        {earned ? badge.blurb : `Reach Level ${badge.level}`}
+                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-20 w-36 bg-slate-900/95 backdrop-blur-sm border border-slate-700/80 rounded-xl p-3 shadow-2xl text-center pointer-events-none">
+                      <p className="text-[11px] font-bold text-white tracking-wide" style={{ color: earned ? badge.secondary : '#cbd5e1' }}>{badge.name}</p>
+                      <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">
+                        {earned ? badge.blurb : `Unlock at Lv. ${badge.level}`}
                       </p>
                     </div>
                   )}
@@ -534,9 +522,12 @@ export default function DashboardPage() {
   if (!user || user.username !== loadedUsername) return null;
 
   return (
-    <div className="tcg-root min-h-screen px-4 py-10 md:py-14 text-slate-200">
-      <div className="max-w-4xl mx-auto space-y-12">
+    <div className="tcg-root min-h-screen px-4 py-10 md:py-16 text-slate-200">
+      {/* Background ambient orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
 
+      <div className="max-w-4xl mx-auto space-y-12 relative z-10">
         {/* ============ THE TRAINER CARD ============ */}
         <TrainerCard
           user={user}
@@ -550,17 +541,18 @@ export default function DashboardPage() {
 
       {/* ============ AVATAR MODAL ============ */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c0906]/90 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030712]/80 backdrop-blur-md" onClick={() => setIsModalOpen(false)}>
           <div className="modal-card w-full max-w-2xl p-6 md:p-8 rounded-[24px]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="card-display text-2xl text-center text-[#20242f] mb-6">Select Avatar</h3>
-            <div className="flex gap-2 mb-6 max-w-xs mx-auto">
-              <button onClick={() => setGenderTab('boy')} className={`type-toggle flex-1 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${genderTab === 'boy' ? 'type-toggle-active-boy' : ''}`}>Boy</button>
-              <button onClick={() => setGenderTab('girl')} className={`type-toggle flex-1 py-2 rounded-full text-xs font-bold uppercase tracking-wider ${genderTab === 'girl' ? 'type-toggle-active-girl' : ''}`}>Girl</button>
+            <h3 className="card-display text-2xl text-center text-emerald-50 mb-8 drop-shadow-md">Select Avatar</h3>
+            <div className="flex gap-3 mb-8 max-w-xs mx-auto">
+              <button onClick={() => setGenderTab('boy')} className={`type-toggle flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${genderTab === 'boy' ? 'type-toggle-active-boy' : ''}`}>Boy</button>
+              <button onClick={() => setGenderTab('girl')} className={`type-toggle flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${genderTab === 'girl' ? 'type-toggle-active-girl' : ''}`}>Girl</button>
             </div>
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-4 gap-4 md:gap-6 mb-4">
               {TRAINER_AVATARS[genderTab].map((url, idx) => (
-                <button key={idx} onClick={() => { setCurrentAvatar(url); setIsModalOpen(false); saveToDB({ avatar_url: url }); }} className="avatar-pick rounded-xl p-2 h-20 bg-[#F7F1DE] relative">
-                  <img src={url} alt={`Avatar ${idx}`} className="h-full mx-auto object-contain image-pixelated" />
+                <button key={idx} onClick={() => { setCurrentAvatar(url); setIsModalOpen(false); saveToDB({ avatar_url: url }); }} className="avatar-pick rounded-2xl p-3 h-24 relative group">
+                  <div className="absolute inset-0 bg-emerald-500/10 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity" />
+                  <img src={url} alt={`Avatar ${idx}`} className="h-full mx-auto object-contain image-pixelated drop-shadow-[0_4px_6px_rgba(0,0,0,0.5)] group-hover:scale-110 transition-transform" />
                 </button>
               ))}
             </div>
@@ -570,158 +562,197 @@ export default function DashboardPage() {
 
       {/* ============ SEARCH MODAL ============ */}
       {isTeamModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c0906]/90 backdrop-blur-sm" onClick={() => setIsTeamModalOpen(false)}>
-          <div className="modal-card w-full max-w-3xl h-[80vh] p-6 md:p-8 rounded-[24px] relative flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#030712]/80 backdrop-blur-md" onClick={() => setIsTeamModalOpen(false)}>
+          <div className="modal-card w-full max-w-4xl h-[85vh] p-6 md:p-8 rounded-[24px] relative flex flex-col shadow-[0_0_50px_rgba(16,185,129,0.1)]" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6 flex items-center justify-between">
-              <h3 className="card-display text-2xl text-[#20242f]">Select a Base Partner</h3>
+              <h3 className="card-display text-2xl text-emerald-50 drop-shadow-md">Select a Partner</h3>
               {activeSlot !== null && team[activeSlot] && (
                 <button
                   onClick={(e) => { handleRemovePokemon(activeSlot, e); setIsTeamModalOpen(false); }}
-                  className="text-[11px] font-bold uppercase tracking-wider text-red-600 hover:text-red-700 border border-red-300 hover:bg-red-50 rounded-full px-3 py-1.5 transition-colors"
+                  className="text-[11px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 rounded-xl px-4 py-2 transition-colors"
                 >
                   Remove Current
                 </button>
               )}
             </div>
-            <input
-              type="text" placeholder="Search Database..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#F7F1DE] border-2 border-[#d8cba5] rounded-xl px-4 py-3 mb-4 font-mono text-slate-800 focus:outline-none"
-            />
-            <div className="flex-1 overflow-y-auto pr-2">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            <div className="relative mb-6">
+              <input
+                type="text" placeholder="Search Database..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl px-5 py-4 font-mono text-emerald-50 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 shadow-inner transition-all"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto pr-3 custom-scrollbar">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
                 {filteredPokemon.map((poke) => (
-                  <button key={poke.id} onClick={() => handleSelectPokemon(poke)} className="avatar-pick rounded-xl p-2 flex flex-col items-center justify-center h-28 bg-[#F7F1DE]">
-                    <div className="relative w-14 h-14">
-                      <Image src={poke.sprite} alt={poke.name} width={56} height={56} loading="lazy" className="object-contain image-pixelated" />
+                  <button key={poke.id} onClick={() => handleSelectPokemon(poke)} className="avatar-pick rounded-2xl p-3 flex flex-col items-center justify-center h-32 group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative w-16 h-16 mb-2">
+                      <Image src={poke.sprite} alt={poke.name} width={64} height={64} loading="lazy" className="object-contain image-pixelated drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)] group-hover:scale-110 transition-transform duration-300" />
                     </div>
-                    <span className="text-[10px] font-bold text-[#8a6a2f] uppercase mt-1 truncate w-full text-center">{poke.name}</span>
+                    <span className="text-[10px] font-bold text-slate-300 group-hover:text-emerald-300 uppercase tracking-wider truncate w-full text-center transition-colors relative z-10">{poke.name}</span>
                   </button>
                 ))}
               </div>
             </div>
-            <button onClick={() => setIsTeamModalOpen(false)} className="mt-4 w-full border border-[#d8cba5] py-3 rounded-xl uppercase text-sm font-bold text-[#8a6a2f]">Close</button>
+            <button onClick={() => setIsTeamModalOpen(false)} className="mt-6 w-full border border-slate-700/80 bg-slate-800/50 hover:bg-slate-700/50 py-4 rounded-xl uppercase text-sm font-bold text-slate-300 hover:text-emerald-300 transition-all">Close</button>
           </div>
         </div>
       )}
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap');
-        .tcg-root { font-family: 'Inter', ui-sans-serif, sans-serif; background: #14100c; }
-        .card-display { font-family: 'Cinzel', serif; font-weight: 700; }
-        .card-label { font-family: 'Inter', ui-sans-serif, sans-serif; font-weight: 700; }
-        .foil-frame { background: linear-gradient(135deg, #F0D488 0%, #B9862F 35%, #F5E6B8 50%, #97721f 65%, #F0D488 100%); }
-        .card-stock { background: linear-gradient(180deg, #FBF6E7 0%, #F1E8CE 100%); }
-        .avatar-ring { box-shadow: 0 0 0 3px #FBF6E7, 0 0 0 5px #C9A84C; }
-        .type-pill { background: #2a4d8f; color: #F1E8CE; font-size: 10px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; }
-        .modal-card { background: linear-gradient(180deg, #FBF6E7 0%, #F1E8CE 100%); border: 1px solid #d8cba5; }
-        .type-toggle { background: #EDE3C8; color: #8a6a2f; border: 1px solid #d8cba5; }
-        .type-toggle-active-boy { background: #2a4d8f; color: #F1E8CE; }
-        .type-toggle-active-girl { background: #b5407a; color: #F1E8CE; }
-        .avatar-pick { border: 2px solid #e3d6ae; cursor: pointer; }
-        .avatar-pick:hover { border-color: #C9A84C; }
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        .tcg-root {
+          font-family: 'Inter', ui-sans-serif, sans-serif;
+          background: radial-gradient(circle at 50% 0%, #061c14 0%, #030712 100%);
+          position: relative;
+        }
+        .pixel-font { font-family: 'Press Start 2P', monospace; }
+        .card-display { font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: 0.05em; }
         .image-pixelated { image-rendering: pixelated; }
 
-        /* --- Badge Case --- */
-        .badge-case {
-          background: linear-gradient(180deg, #3a2412 0%, #241407 100%);
-          border: 1px solid #5a4326;
+        /* --- Modals & Global Accents --- */
+        .modal-card {
+          background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(3, 7, 18, 0.98) 100%);
+          border: 1px solid rgba(52, 211, 153, 0.2);
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05) inset;
         }
-        .badge-slot-locked {
-          background: radial-gradient(circle, #2a1c10 0%, #1a1108 100%);
-          border: 2px solid #4a3620;
+        .type-toggle {
+          background: rgba(30, 41, 59, 0.7);
+          color: #94a3b8;
+          border: 1px solid rgba(255,255,255,0.05);
         }
-        .badge-slot-earned {
-          background: radial-gradient(circle, var(--badge-color) 0%, #1a1108 120%);
-          border: 2px solid var(--badge-color);
-          color: #fff8e7;
-          box-shadow: 0 0 12px -2px var(--badge-color), inset 0 0 8px rgba(255,255,255,0.25);
+        .type-toggle:hover { background: rgba(51, 65, 85, 0.8); color: #e2e8f0; }
+        .type-toggle-active-boy { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 0 15px rgba(59,130,246,0.2); }
+        .type-toggle-active-girl { background: rgba(236, 72, 153, 0.2); color: #f9a8d4; border-color: rgba(236, 72, 153, 0.5); box-shadow: 0 0 15px rgba(236,72,153,0.2); }
+        
+        .avatar-pick {
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(255,255,255,0.05);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+          cursor: pointer;
+          transition: all 0.2s ease;
         }
-        .badge-slot-locked svg { color: #4a3620; }
+        .avatar-pick:hover {
+          border-color: rgba(52, 211, 153, 0.5);
+          box-shadow: 0 0 15px rgba(52,211,153,0.1), inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* --- Scrollbar --- */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(52, 211, 153, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(52, 211, 153, 0.5); }
+
+        /* --- Trainer Card Frame & Background --- */
+        .trainer-card-frame {
+          background: linear-gradient(135deg, #1e293b, #020617);
+          box-shadow: 0 20px 40px -10px rgba(0,0,0,0.9), 0 0 20px rgba(52, 211, 153, 0.15);
+        }
+        .trainer-card-stripes {
+          background-color: #064e3b;
+          background-image: repeating-linear-gradient(
+            180deg,
+            rgba(255,255,255,0.03) 0px,
+            rgba(255,255,255,0.03) 2px,
+            transparent 2px,
+            transparent 8px
+          ), radial-gradient(circle at top right, rgba(16, 185, 129, 0.15), transparent 60%);
+        }
+        .holographic-sheen {
+          background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,0.1) 40%, rgba(52, 211, 153, 0.15) 50%, transparent 60%);
+          background-size: 200% 200%;
+          animation: holoSlide 8s ease-in-out infinite alternate;
+        }
+        @keyframes holoSlide {
+          0% { background-position: 0% 0%; }
+          100% { background-position: 100% 100%; }
+        }
+
+        .trainer-banner-plaque {
+          background: linear-gradient(180deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+          border: 1px solid rgba(52, 211, 153, 0.3);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 6px -1px rgba(0,0,0,0.5);
+        }
+
+        /* --- Team Slots --- */
+        .trainer-team-slot { border: 1px solid transparent; }
+        .trainer-team-slot-empty {
+          background: rgba(3, 7, 18, 0.4);
+          border: 1px dashed rgba(52, 211, 153, 0.3);
+          box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+        }
+        .trainer-team-slot-empty:hover {
+          background: rgba(16, 185, 129, 0.1);
+          border-color: rgba(52, 211, 153, 0.6);
+          box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), 0 0 10px rgba(52, 211, 153, 0.2);
+        }
+        .trainer-team-slot-filled {
+          background: radial-gradient(circle at center, rgba(15, 23, 42, 0.8) 0%, rgba(2, 6, 23, 0.9) 100%);
+          border-color: rgba(52, 211, 153, 0.5);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .trainer-team-slot-filled:hover {
+          border-color: #34d399;
+          box-shadow: 0 0 15px rgba(52, 211, 153, 0.4), inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        /* --- Portrait Ring --- */
+        .trainer-portrait-ring {
+          background: conic-gradient(from 0deg, #10b981, #0ea5e9, #10b981, #34d399, #10b981);
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.8), 0 0 15px rgba(16, 185, 129, 0.4);
+          animation: borderSpin 4s linear infinite;
+        }
+        @keyframes borderSpin {
+          100% { transform: rotate(360deg); }
+        }
+        .trainer-portrait-ring > div {
+          animation: counterSpin 4s linear infinite;
+        }
+        @keyframes counterSpin {
+          100% { transform: rotate(-360deg); }
+        }
+        .trainer-portrait-ring:hover { animation-play-state: paused; }
+        .trainer-portrait-ring:hover > div { animation-play-state: paused; }
+
+        /* --- Badges --- */
+        .trainer-badge-strip {
+          background: rgba(2, 6, 23, 0.5);
+          backdrop-filter: blur(8px);
+          border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .trainer-badge-tile {
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(255,255,255,0.05);
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+        }
+        .trainer-badge-tile-locked {
+          background: rgba(3, 7, 18, 0.6);
+        }
+        .trainer-badge-tile-earned {
+          background: radial-gradient(circle at top left, rgba(255,255,255,0.1), transparent), rgba(15, 23, 42, 0.8);
+          border: 1px solid var(--badge-color);
+          color: var(--badge-glow);
+          box-shadow: 0 0 12px -2px var(--badge-color), inset 0 0 15px rgba(0,0,0,0.8);
+          overflow: hidden;
+        }
         .badge-shine {
           position: absolute;
           inset: 0;
-          border-radius: 9999px;
-          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%);
+          background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);
           background-size: 250% 250%;
           background-position: 100% 0;
           opacity: 0;
-          transition: opacity 0.2s;
+          transition: opacity 0.3s;
         }
-        .badge-slot-earned:hover .badge-shine {
+        .trainer-badge-tile-earned:hover .badge-shine {
           opacity: 1;
-          animation: badgeShineSweep 1s ease-in-out;
+          animation: badgeShineSweep 1.5s ease-in-out infinite;
         }
         @keyframes badgeShineSweep {
           0% { background-position: 120% 0; }
           100% { background-position: -20% 0; }
-        }
-
-        /* --- Trainer Card --- */
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        .pixel-font { font-family: 'Press Start 2P', monospace; }
-
-        .trainer-card-frame {
-          background: #2b2b2b;
-          border: 3px solid #1a1a1a;
-        }
-        .trainer-card-stripes {
-          background-color: #a8dba8;
-          background-image: repeating-linear-gradient(
-            180deg,
-            rgba(255,255,255,0.18) 0px,
-            rgba(255,255,255,0.18) 6px,
-            transparent 6px,
-            transparent 12px
-          );
-        }
-        .trainer-banner-plaque {
-          background: linear-gradient(180deg, #5fb3e8 0%, #2f7fc4 100%);
-          border: 2px solid #1c4d78;
-          border-radius: 6px;
-          box-shadow: inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.25);
-        }
-
-        /* Interactive team slots inside the trainer card */
-        .trainer-team-slot {
-          border: 2px solid rgba(45,90,58,0.4);
-          cursor: pointer;
-        }
-        .trainer-team-slot-empty {
-          background: rgba(255,255,255,0.28);
-          border-style: dashed;
-        }
-        .trainer-team-slot-empty:hover {
-          background: rgba(255,255,255,0.45);
-          border-color: rgba(45,90,58,0.7);
-        }
-        .trainer-team-slot-filled {
-          background: radial-gradient(circle, #fdfcf6 0%, #eef3e6 100%);
-          border-style: solid;
-          border-color: #2d5a3a;
-          box-shadow: 0 2px 0 rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.4);
-        }
-        .trainer-team-slot-filled:hover {
-          box-shadow: 0 3px 0 rgba(0,0,0,0.2), 0 0 8px -1px rgba(45,90,58,0.6), inset 0 0 0 1px rgba(255,255,255,0.5);
-        }
-
-        .trainer-portrait-ring {
-          background: radial-gradient(circle, #7bc98a 0%, #5aa86c 100%);
-          border: 3px solid #2d5a3a;
-          box-shadow: 0 3px 0 rgba(0,0,0,0.2);
-        }
-        .trainer-badge-strip {
-          background: linear-gradient(180deg, #4a9e5e 0%, #3a7d4a 100%);
-          border-top: 2px solid #2d5a3a;
-        }
-        .trainer-badge-tile-locked {
-          background: rgba(0,0,0,0.2);
-          border: 2px solid rgba(255,255,255,0.3);
-        }
-        .trainer-badge-tile-earned {
-          background: radial-gradient(circle, var(--badge-color) 0%, rgba(0,0,0,0.2) 130%);
-          border: 2px solid rgba(255,255,255,0.7);
-          color: #fff8e7;
-          box-shadow: 0 0 8px -1px var(--badge-color);
         }
       `}</style>
     </div>
