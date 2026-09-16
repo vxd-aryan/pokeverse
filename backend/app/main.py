@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, status, Header, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, Any
 import datetime
 import requests
 import random
@@ -117,15 +117,6 @@ def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    # FIX: Return the same minimal shape as /api/auth/login (message, email,
-    # username) instead of the full UserResponse model. The frontend's
-    # session-establishment logic extracts an identity token from exactly
-    # these fields after both register AND login - previously register
-    # returned a differently-shaped UserResponse object with no matching
-    # top-level field, so "Unable to establish user session from backend
-    # response" fired immediately after every successful registration, even
-    # though the account was created fine (which is why signing in right
-    # after always worked).
     return {"message": "Registration successful", "email": new_user.email, "username": new_user.username}
 
 @app.post("/api/auth/login")
@@ -451,12 +442,6 @@ def submit_practice_quiz(
 
 # --- EXPANDED MULTIPLAYER BATTLE ARENA ENGINE ---
 
-# --- TYPE EFFECTIVENESS + AUTHENTIC DAMAGE FORMULA ---
-# Ports the same style of level-50 stat/damage math into this actually-
-# running battle system, so damage now depends on real Attack/Defense
-# stats, STAB, and type matchups instead of just subtracting a move's raw
-# power from HP.
-
 BATTLE_TYPES = [
     "Normal", "Fire", "Water", "Grass", "Electric", "Ice",
     "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug",
@@ -489,12 +474,13 @@ _set_type_eff("Dark", "Fighting", 0.5); _set_type_eff("Dark", "Psychic", 2.0); _
 _set_type_eff("Steel", "Fire", 0.5); _set_type_eff("Steel", "Water", 0.5); _set_type_eff("Steel", "Electric", 0.5); _set_type_eff("Steel", "Ice", 2.0); _set_type_eff("Steel", "Rock", 2.0); _set_type_eff("Steel", "Steel", 0.5); _set_type_eff("Steel", "Fairy", 2.0)
 _set_type_eff("Fairy", "Fire", 0.5); _set_type_eff("Fairy", "Fighting", 2.0); _set_type_eff("Fairy", "Poison", 0.5); _set_type_eff("Fairy", "Dragon", 2.0); _set_type_eff("Fairy", "Dark", 2.0); _set_type_eff("Fairy", "Steel", 0.5)
 
-BATTLE_LEVEL = 50  # Champions-style: fixed level, no in-battle leveling; all stats are pre-computed from base stats.
+BATTLE_LEVEL = 50
+TEAM_SIZE = 3  # ordered party: lead is index 0
 
 
 def _calc_level50_max_hp(base_hp: int) -> int:
     if base_hp <= 1:
-        return 1  # Shedinja-style 1 HP species
+        return 1
     iv, ev = 31, 84
     return math.floor(0.01 * (2 * base_hp + iv + math.floor(0.25 * ev)) * BATTLE_LEVEL) + BATTLE_LEVEL + 10
 
@@ -513,10 +499,6 @@ def _get_type_effectiveness(move_type: str, defender_types: List[str]) -> float:
 
 
 def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
-    """Real Gen 6+ style damage formula: level, Attack/Defense (or
-    Sp.Atk/Sp.Def for special moves), STAB, type effectiveness, a critical
-    hit chance, and the usual 0.85-1.00 random roll - instead of just
-    subtracting the move's raw power from HP."""
     power = move.get("power", 0)
     if power <= 0:
         return {"damage": 0, "effectiveness": 1.0, "critical": False}
@@ -526,18 +508,16 @@ def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
     defender_stats = defender.get("stats") or {}
     atk_stat = attacker_stats.get("attack" if is_physical else "special-attack", 80)
     def_stat = defender_stats.get("defense" if is_physical else "special-defense", 80)
-    def_stat = max(1, def_stat)  # guard against divide-by-zero on malformed data
+    def_stat = max(1, def_stat)
 
     move_type = move.get("type", "Normal")
     defender_types = defender.get("types") or ["Normal"]
     type_mult = _get_type_effectiveness(move_type, defender_types)
 
     if type_mult == 0.0:
-        print(f"[Damage Debug] {move.get('name')} ({move_type}) vs {defender.get('name')} "
-              f"types={defender_types} -> IMMUNE")
         return {"damage": 0, "effectiveness": 0.0, "critical": False}
 
-    is_crit = random.random() < (1 / 16)  # Gen 6+ base crit rate
+    is_crit = random.random() < (1 / 16)
     crit_mult = 1.5 if is_crit else 1.0
 
     attacker_types = attacker.get("types") or []
@@ -546,23 +526,11 @@ def _calculate_move_damage(move: dict, attacker: dict, defender: dict) -> dict:
     random_mult = random.uniform(0.85, 1.00)
 
     base_damage = math.floor((((2 * BATTLE_LEVEL) / 5 + 2) * power * (atk_stat / def_stat)) / 50) + 2
-    final_damage = math.floor(base_damage * crit_mult * stab * type_mult * random_mult)
-    final_damage = max(1, final_damage)
-
-    print(
-        f"[Damage Debug] {move.get('name')} ({move_type}, class={move.get('damage_class')}, power={power}) "
-        f"| attacker={attacker.get('name')} types={attacker_types} atk_stat={atk_stat} "
-        f"| defender={defender.get('name')} types={defender_types} def_stat={def_stat} "
-        f"| stab={stab} type_mult={type_mult} crit={is_crit} random={random_mult:.2f} "
-        f"| base_damage={base_damage} -> final={final_damage}"
-    )
+    final_damage = max(1, math.floor(base_damage * crit_mult * stab * type_mult * random_mult))
 
     return {"damage": final_damage, "effectiveness": type_mult, "critical": is_crit}
 
 
-# Pre-Physical/Special-split-era types skewed physical; used only as a
-# fallback categorization for the curated static pool below, whose moves
-# don't come with a real damage_class from PokeAPI.
 _PHYSICAL_LEANING_TYPES = {"Normal", "Fighting", "Poison", "Ground", "Flying", "Bug", "Rock", "Ghost", "Steel"}
 
 
@@ -571,336 +539,91 @@ def _infer_damage_class(move_type: str) -> str:
 
 
 POKEMON_BATTLE_POOL = [
-    {
-        "name": "Pikachu",
-        "hp": 110,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
-        "moves": [
-            {"id": "p_m1", "name": "Thunderbolt", "type": "Electric", "power": 35},
-            {"id": "p_m2", "name": "Quick Attack", "type": "Normal", "power": 15},
-            {"id": "p_m3", "name": "Iron Tail", "type": "Steel", "power": 25},
-            {"id": "p_m4", "name": "Volt Tackle", "type": "Electric", "power": 45}
-        ]
-    },
-    {
-        "name": "Charizard",
-        "hp": 140,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
-        "moves": [
-            {"id": "c_m1", "name": "Flamethrower", "type": "Fire", "power": 35},
-            {"id": "c_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
-            {"id": "c_m3", "name": "Air Slash", "type": "Flying", "power": 20},
-            {"id": "c_m4", "name": "Fire Blast", "type": "Fire", "power": 45}
-        ]
-    },
-    {
-        "name": "Blastoise",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png",
-        "moves": [
-            {"id": "b_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
-            {"id": "b_m2", "name": "Ice Beam", "type": "Ice", "power": 25},
-            {"id": "b_m3", "name": "Flash Cannon", "type": "Steel", "power": 20},
-            {"id": "b_m4", "name": "Surf", "type": "Water", "power": 30}
-        ]
-    },
-    {
-        "name": "Venusaur",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png",
-        "moves": [
-            {"id": "v_m1", "name": "Solar Beam", "type": "Grass", "power": 45},
-            {"id": "v_m2", "name": "Sludge Bomb", "type": "Poison", "power": 30},
-            {"id": "v_m3", "name": "Giga Drain", "type": "Grass", "power": 20},
-            {"id": "v_m4", "name": "Earthquake", "type": "Ground", "power": 35}
-        ]
-    },
-    {
-        "name": "Gengar",
-        "hp": 120,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png",
-        "moves": [
-            {"id": "g_m1", "name": "Shadow Ball", "type": "Ghost", "power": 35},
-            {"id": "g_m2", "name": "Sludge Wave", "type": "Poison", "power": 30},
-            {"id": "g_m3", "name": "Dark Pulse", "type": "Dark", "power": 25},
-            {"id": "g_m4", "name": "Thunderbolt", "type": "Electric", "power": 25}
-        ]
-    },
-    {
-        "name": "Lucario",
-        "hp": 130,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png",
-        "moves": [
-            {"id": "l_m1", "name": "Aura Sphere", "type": "Fighting", "power": 35},
-            {"id": "l_m2", "name": "Extreme Speed", "type": "Normal", "power": 25},
-            {"id": "l_m3", "name": "Close Combat", "type": "Fighting", "power": 45},
-            {"id": "l_m4", "name": "Flash Cannon", "type": "Steel", "power": 25}
-        ]
-    },
-    {
-        "name": "Mewtwo",
-        "hp": 150,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png",
-        "moves": [
-            {"id": "m_m1", "name": "Psystrike", "type": "Psychic", "power": 45},
-            {"id": "m_m2", "name": "Shadow Ball", "type": "Ghost", "power": 30},
-            {"id": "m_m3", "name": "Aura Sphere", "type": "Fighting", "power": 25},
-            {"id": "m_m4", "name": "Ice Beam", "type": "Ice", "power": 25}
-        ]
-    },
-    {
-        "name": "Garchomp",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/445.png",
-        "moves": [
-            {"id": "gc_m1", "name": "Earthquake", "type": "Ground", "power": 35},
-            {"id": "gc_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
-            {"id": "gc_m3", "name": "Stone Edge", "type": "Rock", "power": 30},
-            {"id": "gc_m4", "name": "Outrage", "type": "Dragon", "power": 45}
-        ]
-    },
-    {
-        "name": "Greninja",
-        "hp": 125,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/658.png",
-        "moves": [
-            {"id": "gr_m1", "name": "Water Shuriken", "type": "Water", "power": 30},
-            {"id": "gr_m2", "name": "Night Slash", "type": "Dark", "power": 25},
-            {"id": "gr_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
-            {"id": "gr_m4", "name": "Hydro Cannon", "type": "Water", "power": 45}
-        ]
-    },
-    {
-        "name": "Dragonite",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png",
-        "moves": [
-            {"id": "d_m1", "name": "Outrage", "type": "Dragon", "power": 40},
-            {"id": "d_m2", "name": "Hurricane", "type": "Flying", "power": 35},
-            {"id": "d_m3", "name": "Fire Punch", "type": "Fire", "power": 20},
-            {"id": "d_m4", "name": "Extreme Speed", "type": "Normal", "power": 25}
-        ]
-    },
-    {
-        "name": "Blaziken",
-        "hp": 135,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/257.png",
-        "moves": [
-            {"id": "bz_m1", "name": "Blaze Kick", "type": "Fire", "power": 30},
-            {"id": "bz_m2", "name": "Sky Uppercut", "type": "Fighting", "power": 25},
-            {"id": "bz_m3", "name": "Flare Blitz", "type": "Fire", "power": 45},
-            {"id": "bz_m4", "name": "Brave Bird", "type": "Flying", "power": 35}
-        ]
-    },
-    {
-        "name": "Sceptile",
-        "hp": 130,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/254.png",
-        "moves": [
-            {"id": "sc_m1", "name": "Leaf Blade", "type": "Grass", "power": 30},
-            {"id": "sc_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
-            {"id": "sc_m3", "name": "Giga Drain", "type": "Grass", "power": 20},
-            {"id": "sc_m4", "name": "Aerial Ace", "type": "Flying", "power": 20}
-        ]
-    },
-    {
-        "name": "Swampert",
-        "hp": 150,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/260.png",
-        "moves": [
-            {"id": "sw_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
-            {"id": "sw_m2", "name": "Earthquake", "type": "Ground", "power": 35},
-            {"id": "sw_m3", "name": "Ice Punch", "type": "Ice", "power": 20},
-            {"id": "sw_m4", "name": "Muddy Water", "type": "Water", "power": 25}
-        ]
-    },
-    {
-        "name": "Metagross",
-        "hp": 150,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/376.png",
-        "moves": [
-            {"id": "mg_m1", "name": "Meteor Mash", "type": "Steel", "power": 35},
-            {"id": "mg_m2", "name": "Zen Headbutt", "type": "Psychic", "power": 25},
-            {"id": "mg_m3", "name": "Earthquake", "type": "Ground", "power": 30},
-            {"id": "mg_m4", "name": "Hammer Arm", "type": "Fighting", "power": 30}
-        ]
-    },
-    {
-        "name": "Salamence",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/373.png",
-        "moves": [
-            {"id": "sal_m1", "name": "Dragon Claw", "type": "Dragon", "power": 30},
-            {"id": "sal_m2", "name": "Hydro Pump", "type": "Water", "power": 40},
-            {"id": "sal_m3", "name": "Fire Blast", "type": "Fire", "power": 35},
-            {"id": "sal_m4", "name": "Dragon Dance", "type": "Dragon", "power": 15}
-        ]
-    },
-    {
-        "name": "Tyranitar",
-        "hp": 150,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png",
-        "moves": [
-            {"id": "ty_m1", "name": "Crunch", "type": "Dark", "power": 30},
-            {"id": "ty_m2", "name": "Rock Slide", "type": "Rock", "power": 30},
-            {"id": "ty_m3", "name": "Earthquake", "type": "Ground", "power": 35},
-            {"id": "ty_m4", "name": "Stone Edge", "type": "Rock", "power": 40}
-        ]
-    },
-    {
-        "name": "Umbreon",
-        "hp": 135,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/197.png",
-        "moves": [
-            {"id": "um_m1", "name": "Dark Pulse", "type": "Dark", "power": 30},
-            {"id": "um_m2", "name": "Foul Play", "type": "Dark", "power": 25},
-            {"id": "um_m3", "name": "Toxic", "type": "Poison", "power": 10},
-            {"id": "um_m4", "name": "Iron Tail", "type": "Steel", "power": 25}
-        ]
-    },
-    {
-        "name": "Espeon",
-        "hp": 120,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/196.png",
-        "moves": [
-            {"id": "es_m1", "name": "Psychic", "type": "Psychic", "power": 30},
-            {"id": "es_m2", "name": "Shadow Ball", "type": "Ghost", "power": 25},
-            {"id": "es_m3", "name": "Dazzling Gleam", "type": "Fairy", "power": 25},
-            {"id": "es_m4", "name": "Morning Sun", "type": "Normal", "power": 10}
-        ]
-    },
-    {
-        "name": "Alakazam",
-        "hp": 110,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/65.png",
-        "moves": [
-            {"id": "al_m1", "name": "Psychic", "type": "Psychic", "power": 35},
-            {"id": "al_m2", "name": "Focus Blast", "type": "Fighting", "power": 30},
-            {"id": "al_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
-            {"id": "al_m4", "name": "Dazzling Gleam", "type": "Fairy", "power": 25}
-        ]
-    },
-    {
-        "name": "Machamp",
-        "hp": 140,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/68.png",
-        "moves": [
-            {"id": "mc_m1", "name": "Close Combat", "type": "Fighting", "power": 40},
-            {"id": "mc_m2", "name": "Rock Slide", "type": "Rock", "power": 25},
-            {"id": "mc_m3", "name": "Stone Edge", "type": "Rock", "power": 35},
-            {"id": "mc_m4", "name": "Payback", "type": "Dark", "power": 20}
-        ]
-    },
-    {
-        "name": "Gyarados",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png",
-        "moves": [
-            {"id": "gy_m1", "name": "Waterfall", "type": "Water", "power": 30},
-            {"id": "gy_m2", "name": "Earthquake", "type": "Ground", "power": 30},
-            {"id": "gy_m3", "name": "Ice Fang", "type": "Ice", "power": 25},
-            {"id": "gy_m4", "name": "Dragon Dance", "type": "Dragon", "power": 15}
-        ]
-    },
-    {
-        "name": "Rayquaza",
-        "hp": 155,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/384.png",
-        "moves": [
-            {"id": "ray_m1", "name": "Dragon Ascent", "type": "Flying", "power": 45},
-            {"id": "ray_m2", "name": "Extreme Speed", "type": "Normal", "power": 25},
-            {"id": "ray_m3", "name": "Dragon Claw", "type": "Dragon", "power": 30},
-            {"id": "ray_m4", "name": "Fire Blast", "type": "Fire", "power": 35}
-        ]
-    },
-    {
-        "name": "Milotic",
-        "hp": 140,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/350.png",
-        "moves": [
-            {"id": "mi_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
-            {"id": "mi_m2", "name": "Ice Beam", "type": "Ice", "power": 25},
-            {"id": "mi_m3", "name": "Dazzling Gleam", "type": "Fairy", "power": 25},
-            {"id": "mi_m4", "name": "Recover", "type": "Normal", "power": 10}
-        ]
-    },
-    {
-        "name": "Infernape",
-        "hp": 130,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/392.png",
-        "moves": [
-            {"id": "inf_m1", "name": "Flare Blitz", "type": "Fire", "power": 40},
-            {"id": "inf_m2", "name": "Close Combat", "type": "Fighting", "power": 35},
-            {"id": "inf_m3", "name": "Mach Punch", "type": "Fighting", "power": 15},
-            {"id": "inf_m4", "name": "Flamethrower", "type": "Fire", "power": 30}
-        ]
-    },
-    {
-        "name": "Empoleon",
-        "hp": 140,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/395.png",
-        "moves": [
-            {"id": "emp_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
-            {"id": "emp_m2", "name": "Flash Cannon", "type": "Steel", "power": 25},
-            {"id": "emp_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
-            {"id": "emp_m4", "name": "Drill Peck", "type": "Flying", "power": 20}
-        ]
-    },
-    {
-        "name": "Torterra",
-        "hp": 150,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/389.png",
-        "moves": [
-            {"id": "tor_m1", "name": "Earthquake", "type": "Ground", "power": 35},
-            {"id": "tor_m2", "name": "Wood Hammer", "type": "Grass", "power": 40},
-            {"id": "tor_m3", "name": "Stone Edge", "type": "Rock", "power": 30},
-            {"id": "tor_m4", "name": "Crunch", "type": "Dark", "power": 25}
-        ]
-    },
-    {
-        "name": "Gardevoir",
-        "hp": 125,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/282.png",
-        "moves": [
-            {"id": "gar_m1", "name": "Moonblast", "type": "Fairy", "power": 30},
-            {"id": "gar_m2", "name": "Psychic", "type": "Psychic", "power": 30},
-            {"id": "gar_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
-            {"id": "gar_m4", "name": "Thunderbolt", "type": "Electric", "power": 20}
-        ]
-    },
-    {
-        "name": "Scizor",
-        "hp": 135,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/212.png",
-        "moves": [
-            {"id": "sci_m1", "name": "Bullet Punch", "type": "Steel", "power": 15},
-            {"id": "sci_m2", "name": "X-Scissor", "type": "Bug", "power": 30},
-            {"id": "sci_m3", "name": "Iron Head", "type": "Steel", "power": 30},
-            {"id": "sci_m4", "name": "Superpower", "type": "Fighting", "power": 35}
-        ]
-    },
-    {
-        "name": "Heatran",
-        "hp": 145,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/485.png",
-        "moves": [
-            {"id": "heat_m1", "name": "Magma Storm", "type": "Fire", "power": 35},
-            {"id": "heat_m2", "name": "Flash Cannon", "type": "Steel", "power": 25},
-            {"id": "heat_m3", "name": "Earth Power", "type": "Ground", "power": 30},
-            {"id": "heat_m4", "name": "Flamethrower", "type": "Fire", "power": 30}
-        ]
-    },
-    {
-        "name": "Darkrai",
-        "hp": 140,
-        "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/491.png",
-        "moves": [
-            {"id": "dk_m1", "name": "Dark Pulse", "type": "Dark", "power": 35},
-            {"id": "dk_m2", "name": "Nasty Plot", "type": "Dark", "power": 15},
-            {"id": "dk_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
-            {"id": "dk_m4", "name": "Sludge Bomb", "type": "Poison", "power": 25}
-        ]
-    }
+    {"name": "Pikachu", "hp": 110, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
+     "moves": [{"id": "p_m1", "name": "Thunderbolt", "type": "Electric", "power": 35},
+               {"id": "p_m2", "name": "Quick Attack", "type": "Normal", "power": 15},
+               {"id": "p_m3", "name": "Iron Tail", "type": "Steel", "power": 25},
+               {"id": "p_m4", "name": "Volt Tackle", "type": "Electric", "power": 45}]},
+    {"name": "Charizard", "hp": 140, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+     "moves": [{"id": "c_m1", "name": "Flamethrower", "type": "Fire", "power": 35},
+               {"id": "c_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
+               {"id": "c_m3", "name": "Air Slash", "type": "Flying", "power": 20},
+               {"id": "c_m4", "name": "Fire Blast", "type": "Fire", "power": 45}]},
+    {"name": "Blastoise", "hp": 145, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png",
+     "moves": [{"id": "b_m1", "name": "Hydro Pump", "type": "Water", "power": 40},
+               {"id": "b_m2", "name": "Ice Beam", "type": "Ice", "power": 25},
+               {"id": "b_m3", "name": "Flash Cannon", "type": "Steel", "power": 20},
+               {"id": "b_m4", "name": "Surf", "type": "Water", "power": 30}]},
+    {"name": "Venusaur", "hp": 145, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png",
+     "moves": [{"id": "v_m1", "name": "Solar Beam", "type": "Grass", "power": 45},
+               {"id": "v_m2", "name": "Sludge Bomb", "type": "Poison", "power": 30},
+               {"id": "v_m3", "name": "Giga Drain", "type": "Grass", "power": 20},
+               {"id": "v_m4", "name": "Earthquake", "type": "Ground", "power": 35}]},
+    {"name": "Gengar", "hp": 120, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png",
+     "moves": [{"id": "g_m1", "name": "Shadow Ball", "type": "Ghost", "power": 35},
+               {"id": "g_m2", "name": "Sludge Wave", "type": "Poison", "power": 30},
+               {"id": "g_m3", "name": "Dark Pulse", "type": "Dark", "power": 25},
+               {"id": "g_m4", "name": "Thunderbolt", "type": "Electric", "power": 25}]},
+    {"name": "Lucario", "hp": 130, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png",
+     "moves": [{"id": "l_m1", "name": "Aura Sphere", "type": "Fighting", "power": 35},
+               {"id": "l_m2", "name": "Extreme Speed", "type": "Normal", "power": 25},
+               {"id": "l_m3", "name": "Close Combat", "type": "Fighting", "power": 45},
+               {"id": "l_m4", "name": "Flash Cannon", "type": "Steel", "power": 25}]},
+    {"name": "Mewtwo", "hp": 150, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png",
+     "moves": [{"id": "m_m1", "name": "Psystrike", "type": "Psychic", "power": 45},
+               {"id": "m_m2", "name": "Shadow Ball", "type": "Ghost", "power": 30},
+               {"id": "m_m3", "name": "Aura Sphere", "type": "Fighting", "power": 25},
+               {"id": "m_m4", "name": "Ice Beam", "type": "Ice", "power": 25}]},
+    {"name": "Garchomp", "hp": 145, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/445.png",
+     "moves": [{"id": "gc_m1", "name": "Earthquake", "type": "Ground", "power": 35},
+               {"id": "gc_m2", "name": "Dragon Claw", "type": "Dragon", "power": 25},
+               {"id": "gc_m3", "name": "Stone Edge", "type": "Rock", "power": 30},
+               {"id": "gc_m4", "name": "Outrage", "type": "Dragon", "power": 45}]},
+    {"name": "Greninja", "hp": 125, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/658.png",
+     "moves": [{"id": "gr_m1", "name": "Water Shuriken", "type": "Water", "power": 30},
+               {"id": "gr_m2", "name": "Night Slash", "type": "Dark", "power": 25},
+               {"id": "gr_m3", "name": "Ice Beam", "type": "Ice", "power": 25},
+               {"id": "gr_m4", "name": "Hydro Cannon", "type": "Water", "power": 45}]},
+    {"name": "Dragonite", "hp": 145, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png",
+     "moves": [{"id": "d_m1", "name": "Outrage", "type": "Dragon", "power": 40},
+               {"id": "d_m2", "name": "Hurricane", "type": "Flying", "power": 35},
+               {"id": "d_m3", "name": "Fire Punch", "type": "Fire", "power": 20},
+               {"id": "d_m4", "name": "Extreme Speed", "type": "Normal", "power": 25}]},
+    {"name": "Blaziken", "hp": 135, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/257.png",
+     "moves": [{"id": "bz_m1", "name": "Blaze Kick", "type": "Fire", "power": 30},
+               {"id": "bz_m2", "name": "Sky Uppercut", "type": "Fighting", "power": 25},
+               {"id": "bz_m3", "name": "Flare Blitz", "type": "Fire", "power": 45},
+               {"id": "bz_m4", "name": "Brave Bird", "type": "Flying", "power": 35}]},
+    {"name": "Metagross", "hp": 150, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/376.png",
+     "moves": [{"id": "mg_m1", "name": "Meteor Mash", "type": "Steel", "power": 35},
+               {"id": "mg_m2", "name": "Zen Headbutt", "type": "Psychic", "power": 25},
+               {"id": "mg_m3", "name": "Earthquake", "type": "Ground", "power": 30},
+               {"id": "mg_m4", "name": "Hammer Arm", "type": "Fighting", "power": 30}]},
+    {"name": "Tyranitar", "hp": 150, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/248.png",
+     "moves": [{"id": "ty_m1", "name": "Crunch", "type": "Dark", "power": 30},
+               {"id": "ty_m2", "name": "Rock Slide", "type": "Rock", "power": 30},
+               {"id": "ty_m3", "name": "Earthquake", "type": "Ground", "power": 35},
+               {"id": "ty_m4", "name": "Stone Edge", "type": "Rock", "power": 40}]},
+    {"name": "Alakazam", "hp": 110, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/65.png",
+     "moves": [{"id": "al_m1", "name": "Psychic", "type": "Psychic", "power": 35},
+               {"id": "al_m2", "name": "Focus Blast", "type": "Fighting", "power": 30},
+               {"id": "al_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
+               {"id": "al_m4", "name": "Dazzling Gleam", "type": "Fairy", "power": 25}]},
+    {"name": "Gyarados", "hp": 145, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/130.png",
+     "moves": [{"id": "gy_m1", "name": "Waterfall", "type": "Water", "power": 30},
+               {"id": "gy_m2", "name": "Earthquake", "type": "Ground", "power": 30},
+               {"id": "gy_m3", "name": "Ice Fang", "type": "Ice", "power": 25},
+               {"id": "gy_m4", "name": "Crunch", "type": "Dark", "power": 25}]},
+    {"name": "Gardevoir", "hp": 125, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/282.png",
+     "moves": [{"id": "gar_m1", "name": "Moonblast", "type": "Fairy", "power": 30},
+               {"id": "gar_m2", "name": "Psychic", "type": "Psychic", "power": 30},
+               {"id": "gar_m3", "name": "Shadow Ball", "type": "Ghost", "power": 25},
+               {"id": "gar_m4", "name": "Thunderbolt", "type": "Electric", "power": 20}]},
+    {"name": "Scizor", "hp": 135, "sprite_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/212.png",
+     "moves": [{"id": "sci_m1", "name": "Bullet Punch", "type": "Steel", "power": 15},
+               {"id": "sci_m2", "name": "X-Scissor", "type": "Bug", "power": 30},
+               {"id": "sci_m3", "name": "Iron Head", "type": "Steel", "power": 30},
+               {"id": "sci_m4", "name": "Superpower", "type": "Fighting", "power": 35}]},
 ]
 
 _FALLBACK_STATS = {
@@ -911,24 +634,17 @@ _FALLBACK_STATS = {
     "speed": _calc_level50_stat(80),
 }
 
-# Rough typing for the curated fallback roster, used only when PokeAPI is
-# unreachable - good enough for STAB/effectiveness on a rarely-hit path.
 _FALLBACK_TYPES = {
     "Pikachu": ["Electric"], "Charizard": ["Fire", "Flying"], "Blastoise": ["Water"],
     "Venusaur": ["Grass", "Poison"], "Gengar": ["Ghost", "Poison"], "Lucario": ["Fighting", "Steel"],
     "Mewtwo": ["Psychic"], "Garchomp": ["Dragon", "Ground"], "Greninja": ["Water", "Dark"],
-    "Dragonite": ["Dragon", "Flying"], "Blaziken": ["Fire", "Fighting"], "Sceptile": ["Grass"],
-    "Swampert": ["Water", "Ground"], "Metagross": ["Steel", "Psychic"], "Salamence": ["Dragon", "Flying"],
-    "Tyranitar": ["Rock", "Dark"], "Umbreon": ["Dark"], "Espeon": ["Psychic"], "Alakazam": ["Psychic"],
-    "Machamp": ["Fighting"], "Gyarados": ["Water", "Flying"], "Rayquaza": ["Dragon", "Flying"],
-    "Milotic": ["Water"], "Infernape": ["Fire", "Fighting"], "Empoleon": ["Water", "Steel"],
-    "Torterra": ["Grass", "Ground"], "Gardevoir": ["Psychic", "Fairy"], "Scizor": ["Bug", "Steel"],
-    "Heatran": ["Fire", "Steel"], "Darkrai": ["Dark"],
+    "Dragonite": ["Dragon", "Flying"], "Blaziken": ["Fire", "Fighting"], "Metagross": ["Steel", "Psychic"],
+    "Tyranitar": ["Rock", "Dark"], "Alakazam": ["Psychic"], "Gyarados": ["Water", "Flying"],
+    "Gardevoir": ["Psychic", "Fairy"], "Scizor": ["Bug", "Steel"],
 }
 
 
 def generate_random_battle_pokemon(user_id: str) -> dict:
-    """Randomly selects a Pokémon from the pool and assigns the user ID."""
     template = random.choice(POKEMON_BATTLE_POOL)
     moves = []
     for m in template["moves"]:
@@ -947,15 +663,6 @@ def generate_random_battle_pokemon(user_id: str) -> dict:
     }
 
 
-# --- DYNAMIC ROSTER: ALL 1025 POKÉMON VIA POKEAPI ---
-# Hand-curating movesets for all 1025 species isn't practical to maintain, so
-# battles instead pull a random species (and a real, damaging moveset) live
-# from PokeAPI - the same data source already used for the quiz modules.
-# Results are cached in-process so repeat picks (very likely once a few
-# hundred battles have run) don't re-hit the network. POKEMON_BATTLE_POOL
-# above is kept as a fallback if PokeAPI is slow/unreachable, so a flaky
-# request never blocks someone from getting into a match.
-
 POKEMON_API_CACHE: Dict[int, dict] = {}
 MOVE_API_CACHE: Dict[str, dict] = {}
 
@@ -965,17 +672,6 @@ _move_fetch_executor = ThreadPoolExecutor(max_workers=10)
 
 
 def _fetch_moves_concurrently(candidate_names: List[str], limit: int) -> List[dict]:
-    """Fetches move details for several candidate move names IN PARALLEL
-    instead of one-at-a-time. The old sequential version could take many
-    seconds (or stall on a slow/timed-out request) when scanning a species'
-    move list one HTTP call at a time - since that whole scan ran inside a
-    single asyncio.to_thread wrapper, one slow patch of requests blocked
-    the entire match-creation step with nothing sent back to either player,
-    which is the most likely cause of matches intermittently failing to
-    start after team selection. Fetching in parallel cuts worst-case
-    latency from "sum of N requests" down to roughly "the slowest single
-    request", so a couple of individual timeouts no longer compound into
-    one long stall."""
     found: List[dict] = []
     if not candidate_names:
         return found
@@ -990,15 +686,13 @@ def _fetch_moves_concurrently(candidate_names: List[str], limit: int) -> List[di
             print(f"[Battle Roster] Move fetch thread error: {e}")
             detail = None
         if detail:
-            found.append(detail)
+            found.append(dict(detail))
         if len(found) >= limit:
             break
     return found[:limit]
 
 
 def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
-    """Fetches (and caches) a species' name, real level-50 stats, types,
-    artwork, and move name list."""
     cached = POKEMON_API_CACHE.get(pokemon_id)
     if cached:
         return cached
@@ -1038,10 +732,6 @@ def _fetch_pokemon_base(pokemon_id: int) -> Optional[dict]:
 
 
 def _fetch_move_detail(move_name: str) -> Optional[dict]:
-    """Fetches (and caches) a move's display name, type, real power, and
-    physical/special damage class. Returns None for status/non-damaging
-    moves (no power value) - the caller skips these since this battle
-    engine only deals direct damage."""
     cached = MOVE_API_CACHE.get(move_name)
     if cached is not None:
         return cached if cached else None
@@ -1049,14 +739,11 @@ def _fetch_move_detail(move_name: str) -> Optional[dict]:
         res = requests.get(f"https://pokeapi.co/api/v2/move/{move_name}", timeout=5).json()
         power = res.get("power")
         if not power:
-            MOVE_API_CACHE[move_name] = {}  # cache the "no power" result too
+            MOVE_API_CACHE[move_name] = {}
             return None
         move_type = res["type"]["name"].capitalize()
         display_name = res["name"].replace("-", " ").title()
         damage_class = (res.get("damage_class") or {}).get("name", "physical")
-        # Real power is used directly now - the actual damage formula
-        # (level, stats, STAB, type effectiveness) handles scaling, so no
-        # artificial rescale is needed like before.
         data = {"name": display_name, "type": move_type, "power": int(power), "damage_class": damage_class}
         MOVE_API_CACHE[move_name] = data
         return data
@@ -1066,9 +753,6 @@ def _fetch_move_detail(move_name: str) -> Optional[dict]:
 
 
 def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
-    """Attempts to build a battler from a random live PokeAPI species. Returns
-    None (triggering the static fallback) if the species can't be fetched or
-    doesn't yield at least 4 usable damaging moves within a bounded search."""
     pokemon_id = random.randint(1, 1025)
     base = _fetch_pokemon_base(pokemon_id)
     if not base or not base["move_pool"]:
@@ -1077,16 +761,10 @@ def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
     candidates = base["move_pool"][:]
     random.shuffle(candidates)
 
-    # Bounded, PARALLEL scan: fetching moves concurrently instead of one at
-    # a time keeps a first-ever (uncached) pick of a move-heavy species from
-    # stalling match creation on a long chain of sequential requests.
     chosen_moves = _fetch_moves_concurrently(candidates[:30], limit=4)
 
     if len(chosen_moves) < 4:
         return None
-
-    for idx, mv in enumerate(chosen_moves):
-        mv["id"] = f"api_{pokemon_id}_{idx}"
 
     return {
         "id": user_id,
@@ -1101,9 +779,6 @@ def _build_battle_pokemon_from_api(user_id: str) -> Optional[dict]:
 
 
 def generate_random_battle_pokemon_any(user_id: str) -> dict:
-    """Preferred entry point: tries the full 1025-species live roster first,
-    falling back to the curated 30-species static pool on any failure so a
-    PokeAPI hiccup never blocks matchmaking."""
     try:
         result = _build_battle_pokemon_from_api(user_id)
         if result:
@@ -1114,18 +789,10 @@ def generate_random_battle_pokemon_any(user_id: str) -> dict:
 
 
 async def generate_random_battle_pokemon_async(user_id: str) -> dict:
-    """Runs the (blocking, requests-based) roster generation off the event
-    loop thread, since match creation happens inside async websocket
-    handlers and must not stall every other connected player's socket while
-    PokeAPI responds."""
     return await asyncio.to_thread(generate_random_battle_pokemon_any, user_id)
 
 
 # --- TEAM BUILDER: SEARCH + SPECIES DETAIL ---
-# Backs the pre-battle "pick your own Pokémon and moves" screen. Search is
-# a simple substring match over a one-time cached list of all species
-# names; the detail endpoint reuses the same base/move fetch+cache helpers
-# as the random-roster generator above.
 
 POKEMON_NAME_INDEX: List[Dict] = []
 
@@ -1168,9 +835,6 @@ def get_battle_roster_pokemon(pokemon_id: int):
     random.shuffle(candidates)
 
     move_details = _fetch_moves_concurrently(candidates[:40], limit=20)
-    # Re-attach move_key (the raw PokeAPI slug) needed later to validate a
-    # selection server-side - _fetch_moves_concurrently only returns the
-    # display-ready detail dicts, not which candidate name produced each.
     move_options = []
     for detail in move_details:
         matched_key = next(
@@ -1188,54 +852,76 @@ def get_battle_roster_pokemon(pokemon_id: int):
     }
 
 
-def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]) -> dict:
-    """Builds a battler from a player's pre-battle team-builder pick,
-    re-validating everything server-side against PokeAPI/cache data so a
-    tampered client payload can't inject fake move power or an out-of-range
-    species - only the pokemon_id and move_key names are trusted from the
-    client; every stat and move detail is re-derived from cached API data.
-    Falls back to the existing random generator if no selection was
-    provided, or if it fails validation entirely (e.g. bad species id)."""
+# ============================================================
+# PARTY BUILDING (3 ordered Pokémon per trainer)
+# ============================================================
+
+def _tag_move_ids(pokemon: dict, slot: int) -> dict:
+    """Move ids must be unique across a whole party, not just within one
+    Pokémon - otherwise a 'use_move' id could match a benched member's move
+    and the wrong move would resolve."""
+    for idx, mv in enumerate(pokemon.get("moves", [])):
+        mv["id"] = f"s{slot}_m{idx}"
+    pokemon["slot"] = slot
+    return pokemon
+
+
+def _normalize_selection(selection: Any) -> List[dict]:
+    """Accepts the new party payload {"team": [{pokemon_id, moves}, ...]},
+    a bare list of the same, or the OLD single-Pokémon payload
+    {"pokemon_id", "moves"} so older clients keep working."""
     if not selection:
-        return generate_random_battle_pokemon_any(user_id)
+        return []
 
-    try:
-        pokemon_id = int(selection.get("pokemon_id"))
-    except (TypeError, ValueError):
-        return generate_random_battle_pokemon_any(user_id)
+    if isinstance(selection, dict):
+        if isinstance(selection.get("team"), list):
+            picks = selection["team"]
+        elif selection.get("pokemon_id") is not None:
+            picks = [selection]
+        else:
+            return []
+    elif isinstance(selection, list):
+        picks = selection
+    else:
+        return []
 
-    if not (1 <= pokemon_id <= 1025):
-        return generate_random_battle_pokemon_any(user_id)
+    normalized: List[dict] = []
+    for pick in picks[:TEAM_SIZE]:
+        if not isinstance(pick, dict):
+            continue
+        try:
+            pid = int(pick.get("pokemon_id"))
+        except (TypeError, ValueError):
+            continue
+        if not (1 <= pid <= 1025):
+            continue
+        raw_moves = pick.get("moves") or []
+        moves = [m for m in raw_moves if isinstance(m, str)][:4]
+        normalized.append({"pokemon_id": pid, "moves": moves})
+    return normalized
 
+
+def _build_one_from_pick(user_id: str, pick: dict, slot: int) -> dict:
+    """Server-side re-validation: only pokemon_id and move names are trusted
+    from the client; stats/power are always re-derived from PokeAPI data."""
+    pokemon_id = pick["pokemon_id"]
     base = _fetch_pokemon_base(pokemon_id)
     if not base:
-        return generate_random_battle_pokemon_any(user_id)
+        return _tag_move_ids(generate_random_battle_pokemon_any(user_id), slot)
 
-    requested_moves = selection.get("moves") or []
-    valid_move_pool = set(base["move_pool"])
-
-    # Only fetch details for moves that are actually in this species' real
-    # movepool (rejects anything a tampered client tried to sneak in),
-    # fetched IN PARALLEL rather than one at a time.
-    valid_requested = [mv for mv in requested_moves if mv in valid_move_pool][:4]
+    valid_pool = set(base["move_pool"])
+    valid_requested = [mv for mv in pick["moves"] if mv in valid_pool][:4]
     chosen_moves = _fetch_moves_concurrently(valid_requested, limit=4)
 
-    # Pad up to 4 with other real damaging moves from the same species if
-    # the player picked fewer than 4 valid ones, so a battle never starts
-    # with an empty moveset.
     if len(chosen_moves) < 4:
-        backfill_candidates = [m for m in base["move_pool"] if m not in requested_moves]
-        random.shuffle(backfill_candidates)
-        backfill_moves = _fetch_moves_concurrently(backfill_candidates[:20], limit=4 - len(chosen_moves))
-        chosen_moves.extend(backfill_moves)
+        backfill = [m for m in base["move_pool"] if m not in pick["moves"]]
+        random.shuffle(backfill)
+        chosen_moves.extend(_fetch_moves_concurrently(backfill[:20], limit=4 - len(chosen_moves)))
 
     if not chosen_moves:
-        return generate_random_battle_pokemon_any(user_id)
+        return _tag_move_ids(generate_random_battle_pokemon_any(user_id), slot)
 
-    for idx, mv in enumerate(chosen_moves):
-        mv["id"] = f"sel_{pokemon_id}_{idx}"
-
-    return {
+    return _tag_move_ids({
         "id": user_id,
         "name": base["name"],
         "current_hp": base["hp"],
@@ -1244,328 +930,481 @@ def _build_battle_pokemon_from_selection(user_id: str, selection: Optional[dict]
         "types": base["types"],
         "stats": base["stats"],
         "moves": chosen_moves,
-    }
+    }, slot)
 
 
-async def build_battle_pokemon_from_selection_async(user_id: str, selection: Optional[dict]) -> dict:
-    return await asyncio.to_thread(_build_battle_pokemon_from_selection, user_id, selection)
+def _build_battle_team(user_id: str, selection: Any) -> List[dict]:
+    """Builds this trainer's ordered party. Index 0 is the lead that comes
+    out at the start of the match. A player who queues without a built party
+    (or whose payload fails validation) gets a random party of the same
+    size, so both sides always have the same number of battlers."""
+    picks = _normalize_selection(selection)
+    team: List[dict] = []
+
+    for slot, pick in enumerate(picks):
+        try:
+            team.append(_build_one_from_pick(user_id, pick, slot))
+        except Exception as e:
+            print(f"[Battle Roster] Party slot {slot} build failed: {e}")
+            team.append(_tag_move_ids(generate_random_battle_pokemon_any(user_id), slot))
+
+    while len(team) < TEAM_SIZE:
+        slot = len(team)
+        mon = generate_random_battle_pokemon_any(user_id)
+        existing_names = {m["name"] for m in team}
+        attempts = 0
+        while mon["name"] in existing_names and attempts < 4:
+            mon = generate_random_battle_pokemon_any(user_id)
+            attempts += 1
+        team.append(_tag_move_ids(mon, slot))
+
+    return team[:TEAM_SIZE]
+
+
+async def build_battle_team_async(user_id: str, selection: Any) -> List[dict]:
+    return await asyncio.to_thread(_build_battle_team, user_id, selection)
+
+
+# ============================================================
+# BATTLE RESULT PERSISTENCE
+# ============================================================
+# The arena's `user_id` throughout this module is the raw string sent as
+# the `?token=` query param - the SAME string /api/users/me treats as the
+# trainer's email (see get_current_user: `authorization.split(" ")[1]` is
+# used directly as `models.User.email`). So a battle result is looked up
+# by matching that string against User.email, then handed to the existing
+# crud.update_player_xp_and_stats - the same helper the REST battle
+# schemas implied but nothing ever actually called.
+
+def _get_db_session():
+    """Pulls one Session out of the get_db() dependency generator for use
+    outside of FastAPI's Depends() injection - there's no request to
+    inject into from inside websocket/background code."""
+    gen = get_db()
+    db = next(gen)
+    return db, gen
+
+
+def _close_db_session(gen) -> None:
+    try:
+        next(gen)
+    except StopIteration:
+        pass
+    except Exception as e:
+        print(f"[Battle Stats] DB session cleanup error: {e}")
+
+
+def _persist_battle_result_sync(user_email: str, is_winner: bool, critical_hits: int = 0) -> None:
+    db, gen = _get_db_session()
+    try:
+        user = db.query(models.User).filter(models.User.email == user_email).first()
+        if not user:
+            print(f"[Battle Stats] No user found for '{user_email}'; skipping stat update.")
+            return
+        crud.update_player_xp_and_stats(db, user.id, is_winner=is_winner, critical_hits=critical_hits)
+        print(f"[Battle Stats] {user_email}: {'WIN' if is_winner else 'LOSS'} recorded (crits={critical_hits}).")
+    except Exception as e:
+        print(f"[Battle Stats] Failed to persist result for {user_email}: {e}")
+    finally:
+        _close_db_session(gen)
+
+
+async def persist_battle_result(user_email: str, is_winner: bool, critical_hits: int = 0) -> None:
+    """Runs the blocking SQLAlchemy update off the event loop thread.
+    Callers fire this with asyncio.create_task rather than awaiting it
+    directly, so a slow DB write never delays state_update/game_over
+    delivery to either player."""
+    await asyncio.to_thread(_persist_battle_result_sync, user_email, is_winner, critical_hits)
 
 
 class BattleRoom:
     """
+    3v3 single battles with switching.
+
     status lifecycle:
       "ongoing"   -> turns being played
-      "finished"  -> someone fainted; rematch-eligible via handle_rematch
-      "abandoned" -> someone explicitly exited or disconnected; terminal,
-                     NOT rematch-eligible (there's no one left to agree)
+      "finished"  -> one side's whole party fainted; rematch-eligible
+      "abandoned" -> someone exited/disconnected; terminal
     """
 
     def __init__(self, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket,
-                 p1_pokemon: dict, p2_pokemon: dict,
-                 p1_selection: Optional[dict] = None, p2_selection: Optional[dict] = None):
+                 p1_team: List[dict], p2_team: List[dict],
+                 p1_selection: Any = None, p2_selection: Any = None):
         self.room_id = room_id
-
-        # Player 1 Setup
         self.p1_id = p1_id
-        self.p1_ws = p1_ws
-        self.p1_pokemon = p1_pokemon
-        self.p1_selection = p1_selection  # remembered so rematches reuse the same picked team
-
-        # Player 2 Setup
         self.p2_id = p2_id
-        self.p2_ws = p2_ws
-        self.p2_pokemon = p2_pokemon
-        self.p2_selection = p2_selection
+
+        self.sockets: Dict[str, WebSocket] = {p1_id: p1_ws, p2_id: p2_ws}
+        self.teams: Dict[str, List[dict]] = {p1_id: p1_team, p2_id: p2_team}
+        self.active_index: Dict[str, int] = {p1_id: 0, p2_id: 0}
+        self.selections: Dict[str, Any] = {p1_id: p1_selection, p2_id: p2_selection}
 
         self.turn = 1
-        self.pending_actions: Dict[str, str] = {}
+        # user_id -> {"type": "move", "move_id": str} | {"type": "switch", "index": int}
+        self.pending_actions: Dict[str, dict] = {}
+        # players who must pick a replacement after a faint (free, not a turn)
+        self.awaiting_switch: Set[str] = set()
         self.rematch_votes: Set[str] = set()
         self.status = "ongoing"
         self.winner = None
+        # Tallied for crud.update_player_xp_and_stats' critical_hits param
+        # when the battle concludes; reset on each rematch.
+        self.crit_counts: Dict[str, int] = {p1_id: 0, p2_id: 0}
 
-    @classmethod
-    async def create(cls, room_id: str, p1_id: str, p1_ws: WebSocket, p2_id: str, p2_ws: WebSocket,
-                      p1_selection: Optional[dict] = None, p2_selection: Optional[dict] = None) -> "BattleRoom":
-        """Async factory: builds both battlers (each may involve a live
-        PokeAPI fetch) before constructing the room, since __init__ can't
-        itself be async. If a player pre-built their team via the team
-        builder, that exact Pokémon/moveset is used (server-validated);
-        otherwise falls back to a random pick. Re-rolls player 2's random
-        pick a few times if it happens to match player 1's species - but
-        never overrides a deliberate, explicit selection."""
-        # Build both players' battlers CONCURRENTLY rather than one after
-        # the other - each build may involve several PokeAPI calls, so
-        # doing them sequentially could roughly double the worst-case wait
-        # (and doubled the chance of a slow network moment stalling things).
-        p1_pokemon, p2_pokemon = await asyncio.gather(
-            build_battle_pokemon_from_selection_async(p1_id, p1_selection),
-            build_battle_pokemon_from_selection_async(p2_id, p2_selection),
-        )
+    # ---------- helpers ----------
 
-        attempts = 0
-        while p2_pokemon["name"] == p1_pokemon["name"] and attempts < 5:
-            if p2_selection:
-                break  # respect a deliberate pick even if it matches p1's species
-            p2_pokemon = await generate_random_battle_pokemon_async(p2_id)
-            attempts += 1
+    @property
+    def players(self) -> List[str]:
+        return [self.p1_id, self.p2_id]
 
-        return cls(room_id, p1_id, p1_ws, p2_id, p2_ws, p1_pokemon, p2_pokemon, p1_selection, p2_selection)
+    def opponent_of(self, user_id: str) -> str:
+        return self.p2_id if user_id == self.p1_id else self.p1_id
+
+    def active_of(self, user_id: str) -> dict:
+        return self.teams[user_id][self.active_index[user_id]]
+
+    def has_alive(self, user_id: str) -> bool:
+        return any(m["current_hp"] > 0 for m in self.teams[user_id])
+
+    def _team_summary(self, user_id: str) -> List[dict]:
+        return [
+            {
+                "index": i,
+                "name": m["name"],
+                "sprite_url": m.get("sprite_url", ""),
+                "types": m.get("types", []),
+                "current_hp": m["current_hp"],
+                "max_hp": m["max_hp"],
+                "fainted": m["current_hp"] <= 0,
+                "is_active": i == self.active_index[user_id],
+            }
+            for i, m in enumerate(self.teams[user_id])
+        ]
+
+    def _can_switch_to(self, user_id: str, index: Any) -> bool:
+        try:
+            index = int(index)
+        except (TypeError, ValueError):
+            return False
+        if not (0 <= index < len(self.teams[user_id])):
+            return False
+        if index == self.active_index[user_id]:
+            return False
+        return self.teams[user_id][index]["current_hp"] > 0
+
+    # ---------- plumbing ----------
 
     def rebind_socket(self, user_id: str, websocket: WebSocket) -> None:
-        """Points this player's slot at a fresh socket (e.g. after a page
-        reload) so they keep receiving updates for a battle already in
-        progress instead of being silently stranded."""
-        if user_id == self.p1_id:
-            self.p1_ws = websocket
-        elif user_id == self.p2_id:
-            self.p2_ws = websocket
+        if user_id in self.sockets:
+            self.sockets[user_id] = websocket
+
+    # Kept for compatibility with any older references.
+    @property
+    def p1_pokemon(self) -> dict:
+        return self.active_of(self.p1_id)
+
+    @property
+    def p2_pokemon(self) -> dict:
+        return self.active_of(self.p2_id)
 
     def get_state_for_player(self, user_id: str) -> dict:
-        """Returns player-perspective state (your active Pokémon on bottom left)."""
-        if user_id == self.p1_id:
-            active = self.p1_pokemon
-            opponent = self.p2_pokemon
-        else:
-            active = self.p2_pokemon
-            opponent = self.p1_pokemon
-
+        foe = self.opponent_of(user_id)
         payload = {
             "type": "state_update",
             "state": {
                 "turn": self.turn,
-                "active_pokemon": active,
-                "opponent_pokemon": opponent,
+                "active_pokemon": self.active_of(user_id),
+                "opponent_pokemon": self.active_of(foe),
+                "my_team": self._team_summary(user_id),
+                "opponent_team": self._team_summary(foe),
                 "status": self.status,
+                "must_switch": user_id in self.awaiting_switch,
+                "opponent_must_switch": foe in self.awaiting_switch,
+                "action_locked": user_id in self.pending_actions,
                 "rematch_requested_by_me": user_id in self.rematch_votes,
-                "rematch_votes_count": len(self.rematch_votes)
+                "rematch_votes_count": len(self.rematch_votes),
             }
         }
         if self.winner:
             payload["state"]["winner"] = self.winner
         return payload
 
-    async def broadcast_states(self):
-        """Sends updated state perspectives to both connected players."""
+    async def send_to(self, user_id: str, message: dict):
+        ws = self.sockets.get(user_id)
+        if not ws:
+            return
         try:
-            await self.p1_ws.send_json(self.get_state_for_player(self.p1_id))
-            await self.p2_ws.send_json(self.get_state_for_player(self.p2_id))
+            await ws.send_json(message)
         except Exception as e:
-            print(f"[Room {self.room_id}] State broadcast error: {e}")
+            print(f"[Room {self.room_id}] Send error for {user_id}: {e}")
+
+    async def broadcast_states(self):
+        for uid in self.players:
+            await self.send_to(uid, self.get_state_for_player(uid))
 
     async def broadcast_log(self, text: str):
-        """Sends logs to both players."""
         log_msg = {"type": "log", "log": {"text": text, "timestamp": int(time.time() * 1000)}}
-        try:
-            await self.p1_ws.send_json(log_msg)
-            await self.p2_ws.send_json(log_msg)
-        except Exception as e:
-            print(f"[Room {self.room_id}] Log broadcast error: {e}")
+        for uid in self.players:
+            await self.send_to(uid, log_msg)
 
     async def broadcast_game_over(self):
-        """Notifies both clients of game conclusion and win/loss status. The
-        client is told exactly which two actions are on the table so the UI
-        can render an unambiguous 'Rematch' / 'Exit' choice."""
-        for uid, ws in [(self.p1_id, self.p1_ws), (self.p2_id, self.p2_ws)]:
-            try:
-                await ws.send_json({
-                    "type": "game_over",
-                    "winner": self.winner,
-                    "available_actions": ["rematch", "exit"],
-                    "state": self.get_state_for_player(uid)["state"]
-                })
-            except Exception as e:
-                print(f"[Room {self.room_id}] Game Over broadcast error for {uid}: {e}")
+        for uid in self.players:
+            await self.send_to(uid, {
+                "type": "game_over",
+                "winner": self.winner,
+                "available_actions": ["rematch", "exit"],
+                "state": self.get_state_for_player(uid)["state"],
+            })
+
+    # ---------- action intake ----------
 
     async def handle_action(self, user_id: str, move_id: str):
-        if self.status != "ongoing" or user_id in self.pending_actions:
+        """A move choice for this turn."""
+        if self.status != "ongoing":
+            return
+        if self.awaiting_switch:
+            # someone still has to send out a replacement; no moves yet
+            return
+        if user_id in self.pending_actions:
+            return
+        if self.active_of(user_id)["current_hp"] <= 0:
             return
 
-        self.pending_actions[user_id] = move_id
+        self.pending_actions[user_id] = {"type": "move", "move_id": move_id}
+        await self._maybe_resolve("Move selected! Waiting for opposing trainer...", user_id)
 
+    async def handle_switch(self, user_id: str, index: Any):
+        """A switch. Forced (post-faint) switches are free; a voluntary
+        switch is locked in as this trainer's whole action for the turn, so
+        the opponent still gets to attack while the swap happens."""
+        if self.status != "ongoing":
+            return
+
+        if user_id in self.awaiting_switch:
+            if not self._can_switch_to(user_id, index):
+                return
+            await self._perform_switch(user_id, int(index), voluntary=False)
+            self.awaiting_switch.discard(user_id)
+
+            if not self.awaiting_switch:
+                self.turn += 1
+                self.pending_actions.clear()
+            await self.broadcast_states()
+            return
+
+        if self.awaiting_switch:
+            return  # opponent still choosing a replacement
+        if user_id in self.pending_actions:
+            return
+        if not self._can_switch_to(user_id, index):
+            return
+
+        self.pending_actions[user_id] = {"type": "switch", "index": int(index)}
+        await self._maybe_resolve("Switch locked in! Waiting for opposing trainer...", user_id)
+
+    async def _maybe_resolve(self, ack_text: str, user_id: str):
         if len(self.pending_actions) < 2:
-            target_ws = self.p1_ws if user_id == self.p1_id else self.p2_ws
-            try:
-                await target_ws.send_json({
-                    "type": "log",
-                    "log": {"text": "Move selected! Waiting for opposing trainer...", "timestamp": int(time.time() * 1000)}
-                })
-            except Exception as e:
-                print(f"[Room {self.room_id}] Ack send error: {e}")
+            await self.send_to(user_id, {
+                "type": "log",
+                "log": {"text": ack_text, "timestamp": int(time.time() * 1000)},
+            })
+            await self.broadcast_states()
             return
-
         await self.resolve_turn()
 
+    # ---------- battle mechanics ----------
+
+    async def _perform_switch(self, user_id: str, index: int, voluntary: bool):
+        outgoing = self.active_of(user_id)
+        self.active_index[user_id] = index
+        incoming = self.active_of(user_id)
+
+        if voluntary:
+            await self.broadcast_log(f"{outgoing['name']} was withdrawn! Go, {incoming['name']}!")
+        else:
+            await self.broadcast_log(f"{incoming['name']} was sent out!")
+
+    async def _execute_attack(self, attacker_id: str, move_id: Optional[str]):
+        attacker = self.active_of(attacker_id)
+        defender_id = self.opponent_of(attacker_id)
+        defender = self.active_of(defender_id)
+
+        move = next((m for m in attacker["moves"] if m["id"] == move_id), attacker["moves"][0])
+
+        await self.broadcast_log(f"{attacker['name']} used {move['name']}!")
+        result = _calculate_move_damage(move, attacker, defender)
+
+        if result["effectiveness"] == 0.0:
+            await self.broadcast_log(f"It had no effect on {defender['name']}!")
+            return
+
+        defender["current_hp"] = max(0, defender["current_hp"] - result["damage"])
+
+        if result["critical"]:
+            self.crit_counts[attacker_id] = self.crit_counts.get(attacker_id, 0) + 1
+            await self.broadcast_log("A critical hit!")
+        if result["effectiveness"] > 1.0:
+            await self.broadcast_log("It's super effective!")
+        elif result["effectiveness"] < 1.0:
+            await self.broadcast_log("It's not very effective...")
+
+        await self.broadcast_log(f"{defender['name']} took {result['damage']} damage!")
+
+        if defender["current_hp"] <= 0:
+            await self.broadcast_log(f"{defender['name']} fainted!")
+
+    async def resolve_turn(self):
+        actions = dict(self.pending_actions)
+        self.pending_actions.clear()
+
+        # 1. Switches happen first - that IS the switcher's action this turn.
+        for uid in self.players:
+            act = actions.get(uid)
+            if act and act.get("type") == "switch" and self._can_switch_to(uid, act.get("index")):
+                await self._perform_switch(uid, int(act["index"]), voluntary=True)
+
+        # 2. Attacks, faster active Pokémon first.
+        attackers = [uid for uid in self.players if (actions.get(uid) or {}).get("type") == "move"]
+        attackers.sort(
+            key=lambda uid: (self.active_of(uid).get("stats", {}).get("speed", 0), random.random()),
+            reverse=True,
+        )
+
+        for uid in attackers:
+            if self.active_of(uid)["current_hp"] <= 0:
+                continue
+            if self.active_of(self.opponent_of(uid))["current_hp"] <= 0:
+                continue
+            await self._execute_attack(uid, (actions.get(uid) or {}).get("move_id"))
+
+        # 3. Faints / win check.
+        if await self._resolve_faints():
+            return
+
+        if self.awaiting_switch:
+            await self.broadcast_states()
+            return
+
+        self.turn += 1
+        await self.broadcast_states()
+
+    async def _resolve_faints(self) -> bool:
+        """Returns True if the whole battle ended."""
+        wiped = [uid for uid in self.players if not self.has_alive(uid)]
+
+        if wiped:
+            self.status = "finished"
+            self.winner = None if len(wiped) == 2 else self.opponent_of(wiped[0])
+            if self.winner:
+                await self.broadcast_log("All of the opposing Pokémon fainted! Victory declared!")
+                loser_id = wiped[0]
+                # Fire-and-forget: the DB write must never hold up state
+                # delivery to either player. Draws are skipped - there's no
+                # fair is_winner value to record for either side.
+                asyncio.create_task(
+                    persist_battle_result(self.winner, True, self.crit_counts.get(self.winner, 0))
+                )
+                asyncio.create_task(
+                    persist_battle_result(loser_id, False, self.crit_counts.get(loser_id, 0))
+                )
+            else:
+                await self.broadcast_log("Both parties were wiped out! It's a draw!")
+            await self.broadcast_states()
+            await self.broadcast_game_over()
+            return True
+
+        for uid in self.players:
+            if self.active_of(uid)["current_hp"] <= 0:
+                self.awaiting_switch.add(uid)
+                await self.send_to(uid, {
+                    "type": "log",
+                    "log": {"text": "Choose your next Pokémon!", "timestamp": int(time.time() * 1000)},
+                })
+        return False
+
+    # ---------- rematch / exit ----------
+
     async def handle_rematch(self, user_id: str):
-        """
-        Rematch Agreement Protocol: only meaningful once a battle has
-        concluded normally (status == "finished"). A room that ended
-        because someone left ("abandoned") has no one left to agree with,
-        so it's explicitly excluded here.
-        """
         if self.status != "finished":
             return
 
         self.rematch_votes.add(user_id)
 
         if len(self.rematch_votes) == 1:
-            other_ws = self.p2_ws if user_id == self.p1_id else self.p1_ws
-            try:
-                await other_ws.send_json({
-                    "type": "rematch_status",
-                    "text": "Opponent wants a rematch! Click Rematch to accept.",
-                    "opponent_wants_rematch": True
-                })
-            except Exception as e:
-                print(f"[Room {self.room_id}] Rematch notify error: {e}")
+            await self.send_to(self.opponent_of(user_id), {
+                "type": "rematch_status",
+                "text": "Opponent wants a rematch! Click Rematch to accept.",
+                "opponent_wants_rematch": True,
+            })
             await self.broadcast_log("Trainer requested a rematch!")
             await self.broadcast_states()
 
         elif len(self.rematch_votes) >= 2:
-            # Synchronized Battle Restart: both trainers agreed. Reuse this
-            # SAME room object (rather than routing back through the global
-            # matchmaker) so a rematch can never accidentally pair either
-            # player with a different opponent. Rebuild from each player's
-            # ORIGINAL team-builder selection (if they made one) so a
-            # deliberately-picked team persists across rematches instead of
-            # being randomized away - HP simply resets to full via a fresh
-            # build.
-            self.p1_pokemon = await build_battle_pokemon_from_selection_async(self.p1_id, self.p1_selection)
-            self.p2_pokemon = await build_battle_pokemon_from_selection_async(self.p2_id, self.p2_selection)
-
-            attempts = 0
-            while self.p2_pokemon["name"] == self.p1_pokemon["name"] and attempts < 5:
-                if self.p2_selection:
-                    break  # respect a deliberate pick even if it matches p1's species
-                self.p2_pokemon = await generate_random_battle_pokemon_async(self.p2_id)
-                attempts += 1
+            rebuilt = await asyncio.gather(
+                build_battle_team_async(self.p1_id, self.selections.get(self.p1_id)),
+                build_battle_team_async(self.p2_id, self.selections.get(self.p2_id)),
+            )
+            self.teams[self.p1_id], self.teams[self.p2_id] = rebuilt
+            self.active_index = {self.p1_id: 0, self.p2_id: 0}
 
             self.turn = 1
             self.pending_actions.clear()
+            self.awaiting_switch.clear()
             self.rematch_votes.clear()
             self.status = "ongoing"
             self.winner = None
+            self.crit_counts = {self.p1_id: 0, self.p2_id: 0}
 
-            await self.broadcast_log(f"Rematch accepted! {self.p1_pokemon['name']} vs {self.p2_pokemon['name']}!")
+            await self.broadcast_log(
+                f"Rematch accepted! {self.active_of(self.p1_id)['name']} vs {self.active_of(self.p2_id)['name']}!"
+            )
             await self.broadcast_states()
 
     async def handle_exit(self, user_id: str):
-        """Exit & Opponent Left Handling: notifies the remaining player and
-        marks the room terminal (no rematch possible from this state). If a
-        rematch vote was already pending when this exit happens, the person
-        who requested it gets a distinct 'rematch_declined' message rather
-        than a generic 'opponent left', since the two situations read very
-        differently to a player waiting on a response."""
         if self.status == "abandoned":
-            return  # already handled
+            return
 
-        other_id = self.p2_id if user_id == self.p1_id else self.p1_id
-        other_ws = self.p2_ws if user_id == self.p1_id else self.p1_ws
+        other_id = self.opponent_of(user_id)
         rematch_was_pending = self.status == "finished" and len(self.rematch_votes) > 0
+        # Distinguish "quit mid-fight" from "declined a rematch after a
+        # battle that already concluded (and was already persisted) by a
+        # faint" - only the former still owes a win/loss record.
+        battle_was_ongoing = self.status == "ongoing"
 
-        try:
-            if rematch_was_pending and other_id in self.rematch_votes:
-                await other_ws.send_json({
-                    "type": "rematch_declined",
-                    "text": "Opponent left instead of accepting the rematch."
-                })
-            else:
-                await other_ws.send_json({
-                    "type": "opponent_left",
-                    "text": "Opponent left the battle."
-                })
-        except Exception as e:
-            print(f"[Room {self.room_id}] Opponent-left notify error: {e}")
+        if rematch_was_pending and other_id in self.rematch_votes:
+            await self.send_to(other_id, {
+                "type": "rematch_declined",
+                "text": "Opponent left instead of accepting the rematch.",
+            })
+        else:
+            await self.send_to(other_id, {
+                "type": "opponent_left",
+                "text": "Opponent left the battle.",
+            })
 
         self.rematch_votes.clear()
+        self.awaiting_switch.clear()
         self.status = "abandoned"
 
-    async def resolve_turn(self):
-        p1_move_id = self.pending_actions.get(self.p1_id)
-        p2_move_id = self.pending_actions.get(self.p2_id)
-
-        p1_move = next((m for m in self.p1_pokemon["moves"] if m["id"] == p1_move_id), self.p1_pokemon["moves"][0])
-        p2_move = next((m for m in self.p2_pokemon["moves"] if m["id"] == p2_move_id), self.p2_pokemon["moves"][0])
-
-        # Execute Player 1 Attack - real damage formula (stats, STAB, type
-        # effectiveness, crit chance) instead of just subtracting raw power.
-        await self.broadcast_log(f"{self.p1_pokemon['name']} used {p1_move['name']}!")
-        p1_result = _calculate_move_damage(p1_move, self.p1_pokemon, self.p2_pokemon)
-        p1_dmg = p1_result["damage"]
-
-        if p1_result["effectiveness"] == 0.0:
-            await self.broadcast_log(f"It had no effect on {self.p2_pokemon['name']}!")
-        else:
-            self.p2_pokemon["current_hp"] = max(0, self.p2_pokemon["current_hp"] - p1_dmg)
-            if p1_result["critical"]:
-                await self.broadcast_log("A critical hit!")
-            if p1_result["effectiveness"] > 1.0:
-                await self.broadcast_log("It's super effective!")
-            elif p1_result["effectiveness"] < 1.0:
-                await self.broadcast_log("It's not very effective...")
-            await self.broadcast_log(f"{self.p2_pokemon['name']} took {p1_dmg} damage!")
-
-        # Check if Player 2 Fainted
-        if self.p2_pokemon["current_hp"] <= 0:
-            self.status = "finished"
-            self.winner = self.p1_pokemon["id"]
-            await self.broadcast_log(f"{self.p2_pokemon['name']} fainted! Victory declared!")
-            await self.broadcast_states()
-            await self.broadcast_game_over()
-            return
-
-        # Execute Player 2 Attack
-        await self.broadcast_log(f"{self.p2_pokemon['name']} used {p2_move['name']}!")
-        p2_result = _calculate_move_damage(p2_move, self.p2_pokemon, self.p1_pokemon)
-        p2_dmg = p2_result["damage"]
-
-        if p2_result["effectiveness"] == 0.0:
-            await self.broadcast_log(f"It had no effect on {self.p1_pokemon['name']}!")
-        else:
-            self.p1_pokemon["current_hp"] = max(0, self.p1_pokemon["current_hp"] - p2_dmg)
-            if p2_result["critical"]:
-                await self.broadcast_log("A critical hit!")
-            if p2_result["effectiveness"] > 1.0:
-                await self.broadcast_log("It's super effective!")
-            elif p2_result["effectiveness"] < 1.0:
-                await self.broadcast_log("It's not very effective...")
-            await self.broadcast_log(f"{self.p1_pokemon['name']} took {p2_dmg} damage!")
-
-        # Check if Player 1 Fainted
-        if self.p1_pokemon["current_hp"] <= 0:
-            self.status = "finished"
-            self.winner = self.p2_pokemon["id"]
-            await self.broadcast_log(f"{self.p1_pokemon['name']} fainted! Victory declared!")
-            await self.broadcast_states()
-            await self.broadcast_game_over()
-            return
-
-        # Next turn
-        self.pending_actions.clear()
-        self.turn += 1
-        await self.broadcast_states()
+        if battle_was_ongoing:
+            # Matches the +50 XP the frontend already shows on its
+            # "opponent left" screen - the remaining trainer is credited
+            # with the win, and the one who quit takes the loss.
+            asyncio.create_task(
+                persist_battle_result(other_id, True, self.crit_counts.get(other_id, 0))
+            )
+            asyncio.create_task(
+                persist_battle_result(user_id, False, self.crit_counts.get(user_id, 0))
+            )
 
 
 class BattleMatchmaker:
-    """
-    Connecting a socket and *queueing for a match* are deliberately separate
-    steps (register_connection vs join_queue). A raw socket connection —
-    including reconnects that happen for reasons unrelated to matchmaking
-    intent, like a remounted component or a network blip — must never by
-    itself place a player into a new battle. Queueing only happens on an
-    explicit "find_match" action, and even then a player already inside a
-    live room is refused a second match.
-    """
-
     def __init__(self):
-        self.waiting_player: Optional[tuple[str, WebSocket, Optional[dict]]] = None
+        self.waiting_player: Optional[tuple] = None  # (user_id, websocket, selection)
         self.active_rooms: Dict[str, BattleRoom] = {}
         self.active_connections: Dict[str, WebSocket] = {}
 
     async def register_connection(self, user_id: str, websocket: WebSocket):
-        """Registers the socket without putting the user into the queue. If
-        the player already has a live or rematch-pending room (e.g. they
-        refreshed the page mid-battle), rebind that room to the new socket
-        and push them the current state immediately."""
         await websocket.accept()
         self.active_connections[user_id] = websocket
 
@@ -1581,17 +1420,11 @@ class BattleMatchmaker:
             })
             print(f"[Matchmaker] Registered socket for Trainer: {user_id}")
 
-    async def join_queue(self, user_id: str, selection: Optional[dict] = None):
-        """Explicitly adds player to queue or matches them with a waiting
-        opponent. `selection` is the player's team-builder pick (species +
-        moves), if they made one via the pre-battle picker; None falls back
-        to a random battler for that player."""
+    async def join_queue(self, user_id: str, selection: Any = None):
         websocket = self.active_connections.get(user_id)
         if not websocket:
             return
 
-        # Already in a live or rematch-pending room — refuse to spin up a
-        # second, disconnected battle behind the client's back.
         if self.find_room(user_id):
             try:
                 await websocket.send_json({
@@ -1610,22 +1443,21 @@ class BattleMatchmaker:
             self.waiting_player = None
 
             try:
-                # Collision-proof unique room ID
                 room_id = f"arena_{uuid.uuid4().hex[:12]}"
-                room = await BattleRoom.create(room_id, p1_id, p1_ws, user_id, websocket, p1_selection, selection)
+                p1_team, p2_team = await asyncio.gather(
+                    build_battle_team_async(p1_id, p1_selection),
+                    build_battle_team_async(user_id, selection),
+                )
+                room = BattleRoom(room_id, p1_id, p1_ws, user_id, websocket,
+                                  p1_team, p2_team, p1_selection, selection)
                 self.active_rooms[room_id] = room
 
-                await room.broadcast_log(f"Match started! {room.p1_pokemon['name']} vs {room.p2_pokemon['name']}!")
+                await room.broadcast_log(
+                    f"Match started! {room.active_of(p1_id)['name']} vs {room.active_of(user_id)['name']}!"
+                )
                 await room.broadcast_states()
                 print(f"[Matchmaker] New room initialized: {room_id}")
             except Exception as e:
-                # Match creation can fail on a bad network moment (PokeAPI
-                # slow/unreachable while building either player's team).
-                # Without this, BOTH players were left silently stuck on
-                # "Searching..." forever with no room and no error message -
-                # exactly the intermittent "sometimes doesn't work" symptom.
-                # Instead: put player 1 back at the front of the queue (they
-                # don't lose their spot) and tell player 2 to retry.
                 import traceback
                 print(f"[Matchmaker] Room creation failed for {p1_id} vs {user_id}: {e}")
                 traceback.print_exc()
@@ -1653,60 +1485,32 @@ class BattleMatchmaker:
             print(f"[Matchmaker] Trainer {user_id} added to waiting queue.")
 
     def leave_queue(self, user_id: str):
-        """Removes trainer from waiting queue if present."""
         if self.waiting_player and self.waiting_player[0] == user_id:
             self.waiting_player = None
             print(f"[Matchmaker] Trainer {user_id} removed from queue.")
 
     def find_room(self, user_id: str) -> Optional[BattleRoom]:
-        """Finds an active (non-abandoned) room associated with user_id."""
         for room in list(self.active_rooms.values()):
             if user_id in (room.p1_id, room.p2_id) and room.status != "abandoned":
                 return room
         return None
 
     def remove_room(self, room_id: str):
-        """Completely purges room from active list."""
         if room_id in self.active_rooms:
             del self.active_rooms[room_id]
             print(f"[Matchmaker] Room {room_id} cleaned up.")
 
     async def disconnect(self, user_id: str, websocket: WebSocket):
-        """
-        Handles a raw socket disconnect. Deliberately does NOT treat this the
-        same as an explicit "exit" action: a socket can drop for reasons that
-        have nothing to do with the player actually leaving — most commonly,
-        the frontend component that owns the websocket unmounting during a
-        screen transition (e.g. moving from the battle view to a results
-        overlay) right after the match ends. If we immediately abandoned the
-        room here, the very next "find_match" from a freshly reconnected
-        socket would slip past find_room's guard (the room would already be
-        gone) and pair the same two players into a brand new match — which
-        is exactly the "instantly starts a new fight" bug. Instead we give a
-        short grace window for the player to reconnect before finalizing the
-        disconnect as a genuine exit.
-
-        IMPORTANT identity check: this coroutine is tied to ONE specific
-        socket. If the player already closed this connection and opened a
-        NEW one (e.g. exiting a finished battle, then immediately queueing
-        for another), the new socket's `register_connection` may finish and
-        overwrite `active_connections[user_id]` BEFORE this old socket's
-        disconnect gets processed by the event loop - the two are separate
-        coroutines and asyncio can interleave them in either order. Without
-        this check, an old, already-superseded disconnect would blindly
-        delete the entry pointing at the brand-new, perfectly-good
-        connection - after which every subsequent action from that (still
-        actually open) socket would silently find `active_connections.get
-        (user_id)` returning None and do nothing, which is exactly the
-        "stuck on Entering Arena forever" symptom this fixes.
-        """
+        """Grace-window disconnect. The identity check keeps an old,
+        already-superseded socket's disconnect from deleting the entry that
+        points at a brand-new, working connection."""
         self.leave_queue(user_id)
 
         if self.active_connections.get(user_id) is websocket:
             del self.active_connections[user_id]
         else:
             print(f"[Matchmaker] Ignoring stale disconnect for {user_id} - a newer connection is already active.")
-            return  # a newer connection has already taken over; nothing else to clean up
+            return
 
         room = self.find_room(user_id)
         if not room:
@@ -1717,9 +1521,6 @@ class BattleMatchmaker:
     async def _finalize_disconnect(self, user_id: str, room_id: str, grace_seconds: float = 45.0) -> None:
         await asyncio.sleep(grace_seconds)
 
-        # Reconnected within the grace window (register_connection re-adds
-        # them to active_connections) — nothing to do, the room stays intact
-        # and they can still choose Rematch or Exit normally.
         if user_id in self.active_connections:
             return
 
@@ -1733,13 +1534,12 @@ class BattleMatchmaker:
 
 matchmaker = BattleMatchmaker()
 
-# --- ALIAS ROUTE FOR FRONTEND COMPATIBILITY ---
+
 @app.websocket("/ws")
 async def alias_battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
-    """Alias route to catch connections hitting /ws instead of /api/battle/ws"""
     await battle_websocket_endpoint(websocket, token)
 
-# --- BATTLE ARENA WEBSOCKET ROUTE ---
+
 @app.websocket("/api/battle/ws")
 async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
     user_id = token
@@ -1748,44 +1548,36 @@ async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
     try:
         while True:
             data = await websocket.receive_text()
-            
-            # FIX 1: Prevent JSON crashes
+
             try:
                 parsed = json.loads(data)
             except json.JSONDecodeError:
                 print(f"[Battle Arena] Received invalid JSON from {user_id}")
                 continue
-                
+
             action = parsed.get("action")
 
             try:
                 if action == "find_match":
-                    selection = parsed.get("selection")  # {"pokemon_id": int, "moves": [move_key, ...]}
+                    selection = parsed.get("selection")
                     await matchmaker.join_queue(user_id, selection)
                 elif action == "cancel_search":
                     matchmaker.leave_queue(user_id)
                 elif action == "ping":
-                    # FIX 2: Defeat the Render timeout (Do nothing, just acknowledge)
                     pass
                 else:
                     room = matchmaker.find_room(user_id)
                     if room:
                         if action == "use_move":
-                            move_id = parsed.get("moveId")
-                            await room.handle_action(user_id, move_id)
+                            await room.handle_action(user_id, parsed.get("moveId"))
+                        elif action == "switch":
+                            await room.handle_switch(user_id, parsed.get("index"))
                         elif action == "rematch":
                             await room.handle_rematch(user_id)
                         elif action == "exit":
                             await room.handle_exit(user_id)
                             matchmaker.remove_room(room.room_id)
             except Exception as e:
-                # A bug in one turn's resolution (e.g. the damage formula
-                # hitting unexpected data) must NEVER crash the raw websocket
-                # loop - that would silently disconnect BOTH players in the
-                # room, which is exactly the "multiplayer keeps disconnecting"
-                # symptom this is guarding against. Log the full traceback
-                # server-side so the real cause is visible in Render logs,
-                # and keep the connection alive either way.
                 import traceback
                 print(f"[Battle Arena] Error handling action '{action}' for {user_id}: {e}")
                 traceback.print_exc()
