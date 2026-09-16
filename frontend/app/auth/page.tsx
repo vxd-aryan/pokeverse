@@ -89,168 +89,196 @@ export default function AuthPage() {
 
   return (
     <div className="gate-root min-h-screen text-white flex flex-col justify-center items-center p-4 relative overflow-hidden">
-
-      {/* sky decoration */}
+      
+      {/* Dynamic Sky & Scenery Decoration */}
+      <div className="stars" aria-hidden="true" />
       <div className="sun-glow" aria-hidden="true" />
       <div className="cloud cloud-a" aria-hidden="true" />
       <div className="cloud cloud-b" aria-hidden="true" />
       <div className="hills" aria-hidden="true" />
       <div className="grass-row" aria-hidden="true" />
 
-      <div className="w-full max-w-md gate-sign relative z-10 rounded-[26px] p-[3px]">
-        <div className="gate-sign-inner rounded-[23px] p-8">
-
-          <div className="text-center mb-6">
-            <div className="emblem mx-auto mb-3" aria-hidden="true">
+      <div className="w-full max-w-md gate-sign relative z-10 rounded-[28px] p-[2px] transition-all duration-500 hover:shadow-2xl hover:-translate-y-1">
+        <div className="gate-sign-inner rounded-[26px] p-8 sm:p-10 backdrop-blur-xl">
+          
+          <div className="text-center mb-8">
+            <div className="emblem mx-auto mb-4" aria-hidden="true">
               <span className="emblem-dot" />
             </div>
-            <h1 className="gate-title text-2xl text-[#4a3423]">Academy Gateway</h1>
-            <p className="gate-label text-[10px] text-[#8a7355] mt-1 tracking-[0.2em]">YOUR JOURNEY BEGINS HERE</p>
+            <h1 className="gate-title text-3xl text-gray-800 tracking-tight">Academy Gateway</h1>
+            <p className="gate-label text-[11px] font-semibold text-gray-500 mt-2 tracking-[0.25em] uppercase">Your Journey Begins Here</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-6">
+          <div className="relative flex p-1.5 bg-gray-100/50 rounded-2xl mb-8 backdrop-blur-sm border border-gray-200/50 shadow-inner">
             <button
               type="button"
               onClick={() => { setIsLogin(true); setError(null); }}
-              className={`path-tab py-2 text-xs rounded-xl transition-all ${isLogin ? 'path-tab--sign-in-active' : ''}`}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 z-10 ${isLogin ? 'path-tab--active' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Sign In
             </button>
             <button
               type="button"
               onClick={() => { setIsLogin(false); setError(null); }}
-              className={`path-tab py-2 text-xs rounded-xl transition-all ${!isLogin ? 'path-tab--register-active' : ''}`}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-300 z-10 ${!isLogin ? 'path-tab--active' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Register
             </button>
           </div>
 
           {error && (
-            <div className="error-scroll text-xs p-3 rounded-xl mb-4 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
-              <span>⚠️</span> {error}
+            <div className="error-scroll text-sm p-4 rounded-xl mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-300 shadow-sm border-l-4">
+              <span className="mt-0.5 text-lg">⚠️</span> 
+              <p className="leading-tight">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">TRAINER NAME</label>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="AshKetchum"
-                  className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
-                />
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className={`transition-all duration-300 overflow-hidden ${!isLogin ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <label className="gate-label block text-xs font-bold text-gray-600 mb-1.5 tracking-wider">TRAINER NAME</label>
+              <input
+                type="text"
+                required={!isLogin}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. AshKetchum"
+                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-all duration-200"
+              />
+            </div>
 
             <div>
-              <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">EMAIL ADDRESS</label>
+              <label className="gate-label block text-xs font-bold text-gray-600 mb-1.5 tracking-wider">EMAIL ADDRESS</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="trainer@academy.com"
-                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
+                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-all duration-200"
               />
             </div>
 
             <div>
-              <label className="gate-label block text-[10px] text-[#8a7355] mb-1 tracking-wider">PASSWORD</label>
+              <label className="gate-label block text-xs font-bold text-gray-600 mb-1.5 tracking-wider">PASSWORD</label>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-colors"
+                className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-all duration-200"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="set-off-btn w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex justify-center items-center disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="set-off-btn w-full py-3.5 rounded-xl text-sm font-bold shadow-lg transition-all flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed mt-4 group overflow-hidden relative"
             >
-              {loading ? (
-                <span className="mini-pokeball" aria-hidden="true" />
-              ) : isLogin ? (
-                'Enter Academy'
-              ) : (
-                'Create Profile'
-              )}
+              <span className="absolute inset-0 w-full h-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                {loading ? (
+                  <span className="mini-pokeball" aria-hidden="true" />
+                ) : isLogin ? (
+                  'Enter Academy'
+                ) : (
+                  'Create Profile'
+                )}
+              </span>
             </button>
           </form>
 
-          <div className="text-center mt-6">
-            <Link href="/" className="dirt-path-link text-xs transition-colors">
-              ← Continue as Guest
+          <div className="text-center mt-8">
+            <Link href="/" className="dirt-path-link text-sm font-semibold transition-colors inline-flex items-center gap-1 group">
+              <span className="group-hover:-translate-x-1 transition-transform">←</span> Continue as Guest
             </Link>
           </div>
         </div>
       </div>
 
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
 
         .gate-root {
-          font-family: 'Nunito', ui-sans-serif, sans-serif;
-          background: linear-gradient(180deg, #241247 0%, #5a2f66 28%, #b4552f 52%, #e79a52 68%, #f6d9a5 84%, #f6d9a5 100%);
+          font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+          background: linear-gradient(180deg, #1a0b2e 0%, #3e1f47 30%, #8b3a20 60%, #c46d3b 80%, #e8bc82 100%);
         }
+
+        .stars {
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 50%;
+          background-image: 
+            radial-gradient(2px 2px at 20px 30px, #ffffff, rgba(0,0,0,0)),
+            radial-gradient(2px 2px at 40px 70px, #ffffff, rgba(0,0,0,0)),
+            radial-gradient(2px 2px at 50px 160px, #ffffff, rgba(0,0,0,0)),
+            radial-gradient(2px 2px at 90px 40px, #ffffff, rgba(0,0,0,0)),
+            radial-gradient(2px 2px at 130px 80px, #ffffff, rgba(0,0,0,0));
+          background-repeat: repeat;
+          background-size: 200px 200px;
+          opacity: 0.3;
+          pointer-events: none;
+        }
+
         .gate-title {
-          font-family: 'Fredoka', ui-sans-serif, sans-serif;
-          font-weight: 700;
-        }
-        .gate-label {
-          font-family: 'Nunito', ui-sans-serif, sans-serif;
           font-weight: 800;
+          background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .gate-label {
+          font-family: 'Outfit', ui-sans-serif, sans-serif;
         }
 
         .sun-glow {
           position: absolute;
-          top: 8%;
+          top: 15%;
           left: 50%;
-          width: 260px;
-          height: 260px;
+          width: 320px;
+          height: 320px;
           transform: translateX(-50%);
           border-radius: 9999px;
-          background: radial-gradient(circle, rgba(255,220,168,0.9), rgba(255,220,168,0.15) 60%, transparent 70%);
-          filter: blur(2px);
+          background: radial-gradient(circle, rgba(255,230,180,0.8), rgba(255,200,100,0.2) 50%, transparent 70%);
+          filter: blur(8px);
           pointer-events: none;
+          animation: pulse-glow 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+          0% { transform: translateX(-50%) scale(1); opacity: 0.8; }
+          100% { transform: translateX(-50%) scale(1.05); opacity: 1; }
         }
 
         .cloud {
           position: absolute;
           border-radius: 9999px;
-          background: rgba(255,255,255,0.12);
-          filter: blur(1px);
+          background: linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05));
+          backdrop-filter: blur(2px);
           pointer-events: none;
         }
-        .cloud-a { width: 160px; height: 36px; top: 16%; left: 8%; }
-        .cloud-b { width: 120px; height: 28px; top: 24%; right: 10%; }
+        .cloud-a { width: 180px; height: 42px; top: 18%; left: 5%; }
+        .cloud-b { width: 140px; height: 32px; top: 28%; right: 5%; }
+        
         @media (prefers-reduced-motion: no-preference) {
-          .cloud-a { animation: drift 22s ease-in-out infinite; }
-          .cloud-b { animation: drift 26s ease-in-out infinite reverse; }
+          .cloud-a { animation: drift 25s ease-in-out infinite; }
+          .cloud-b { animation: drift 30s ease-in-out infinite reverse; }
         }
         @keyframes drift {
           0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(24px); }
+          50% { transform: translateX(30px); }
         }
 
         .hills {
           position: absolute;
-          bottom: 90px;
-          left: 0;
-          right: 0;
-          height: 140px;
-          background: linear-gradient(180deg, #3f6b46 0%, #2f5638 100%);
+          bottom: 70px;
+          left: -10%;
+          right: -10%;
+          height: 160px;
+          background: linear-gradient(180deg, #2d5a35 0%, #1a3821 100%);
           border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-          transform: scaleX(1.4);
-          opacity: 0.9;
+          opacity: 0.95;
           pointer-events: none;
+          box-shadow: inset 0 10px 30px rgba(0,0,0,0.2);
         }
 
         .grass-row {
@@ -258,106 +286,102 @@ export default function AuthPage() {
           bottom: 0;
           left: 0;
           right: 0;
-          height: 90px;
-          background: #234d35;
+          height: 70px;
+          background: #1e4229;
           pointer-events: none;
         }
         .grass-row::before {
           content: '';
           position: absolute;
-          top: -18px;
+          top: -15px;
           left: 0;
           right: 0;
-          height: 20px;
-          background:
-            repeating-linear-gradient(
-              70deg,
-              #234d35 0px, #234d35 8px,
-              transparent 8px, transparent 16px
-            );
-          background-size: 24px 20px;
+          height: 15px;
+          background: repeating-linear-gradient(
+            60deg,
+            #1e4229 0px, #1e4229 10px,
+            transparent 10px, transparent 20px
+          );
+          background-size: 30px 15px;
         }
 
         .gate-sign {
-          background: linear-gradient(155deg, #a5713f 0%, #6b4226 45%, #8a5a34 60%, #52341f 100%);
-          box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3);
+          background: linear-gradient(145deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
         }
+        
         .gate-sign-inner {
-          background: linear-gradient(180deg, #f9f1de 0%, #ece0c4 100%);
+          background: linear-gradient(135deg, rgba(253,24bf,235,0.95) 0%, rgba(245,235,215,0.98) 100%);
+          box-shadow: inset 0 2px 20px rgba(255,255,255,0.5);
         }
 
         .emblem {
-          width: 46px;
-          height: 46px;
+          width: 54px;
+          height: 54px;
           border-radius: 9999px;
-          background: linear-gradient(180deg, #c9432f 0%, #c9432f 46%, #3a2a1c 46%, #3a2a1c 54%, #f9f1de 54%, #f9f1de 100%);
-          box-shadow: 0 0 0 3px #f9f1de, 0 0 0 5px #a5713f;
+          background: linear-gradient(180deg, #e53e3e 0%, #e53e3e 47%, #1a202c 47%, #1a202c 53%, #ffffff 53%, #ffffff 100%);
+          box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #cbd5e0, 0 8px 16px rgba(0,0,0,0.15);
           display: flex;
           align-items: center;
           justify-content: center;
+          transition: transform 0.3s ease;
         }
-        .emblem-dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 9999px;
-          background: #f9f1de;
-          border: 2px solid #3a2a1c;
+        .gate-sign:hover .emblem {
+          transform: rotate(180deg);
         }
 
-        .path-tab {
-          background: #ece0c4;
-          color: #8a7355;
-          border: 1px solid #d9c69f;
-          font-weight: 700;
+        .emblem-dot {
+          width: 14px;
+          height: 14px;
+          border-radius: 9999px;
+          background: #ffffff;
+          border: 3px solid #1a202c;
+          box-shadow: inset 0 0 2px rgba(0,0,0,0.2);
         }
-        .path-tab--sign-in-active {
-          background: linear-gradient(180deg, #4f8c5f, #2f6b45);
-          color: #f9f1de;
-          border-color: #2f6b45;
-          box-shadow: 0 6px 14px -6px rgba(47,107,69,0.6);
-        }
-        .path-tab--register-active {
-          background: linear-gradient(180deg, #e0a13f, #c9862f);
-          color: #3a2a1c;
-          border-color: #c9862f;
-          box-shadow: 0 6px 14px -6px rgba(201,134,47,0.6);
+
+        .path-tab--active {
+          background: #ffffff;
+          color: #2d3748;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
         }
 
         .error-scroll {
-          background: #f6e2d9;
-          border: 1px solid #d98a6f;
-          color: #a1402c;
-          font-weight: 700;
+          background: #fff5f5;
+          border-color: #feb2b2;
+          color: #c53030;
         }
 
         .gate-input {
-          background: #fbf6ea;
-          border: 1px solid #d9c69f;
-          color: #4a3423;
+          background: rgba(255,255,255,0.7);
+          border: 2px solid transparent;
+          color: #2d3748;
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
         }
-        .gate-input::placeholder { color: #b5a37f; }
+        .gate-input::placeholder { color: #a0aec0; font-weight: 500; }
         .gate-input:focus {
           outline: none;
-          border-color: #c9862f;
-          box-shadow: 0 0 0 3px rgba(201,134,47,0.2);
+          background: #ffffff;
+          border-color: #4299e1;
+          box-shadow: 0 0 0 4px rgba(66,153,225,0.15), inset 0 2px 4px rgba(0,0,0,0.02);
         }
 
         .set-off-btn {
-          background: linear-gradient(180deg, #e0a13f, #b9722c);
-          color: #3a2a1c;
-          border: 1px solid #9c5f26;
+          background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+          color: #ffffff;
+          border: none;
+          box-shadow: 0 4px 14px rgba(49, 130, 206, 0.4);
         }
         .set-off-btn:hover:not(:disabled) {
-          filter: brightness(1.05);
+          box-shadow: 0 6px 20px rgba(49, 130, 206, 0.5);
         }
 
         .mini-pokeball {
           display: inline-block;
-          width: 18px;
-          height: 18px;
+          width: 20px;
+          height: 20px;
           border-radius: 9999px;
-          background: linear-gradient(180deg, #c9432f 0%, #c9432f 46%, #3a2a1c 46%, #3a2a1c 54%, #f9f1de 54%, #f9f1de 100%);
-          box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+          background: linear-gradient(180deg, #fc8181 0%, #e53e3e 46%, #2d3748 46%, #2d3748 54%, #ffffff 54%, #edf2f7 100%);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           position: relative;
         }
         .mini-pokeball::after {
@@ -365,32 +389,34 @@ export default function AuthPage() {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: 5px;
-          height: 5px;
+          width: 6px;
+          height: 6px;
           border-radius: 9999px;
-          background: #f9f1de;
-          border: 1px solid #3a2a1c;
+          background: #ffffff;
+          border: 1.5px solid #2d3748;
           transform: translate(-50%, -50%);
         }
+        
         @media (prefers-reduced-motion: no-preference) {
-          .mini-pokeball { animation: spin 0.9s linear infinite; }
+          .mini-pokeball { animation: spin-bounce 1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
         }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes spin-bounce {
+          0% { transform: rotate(0deg) scale(1); }
+          50% { transform: rotate(180deg) scale(1.1); }
+          100% { transform: rotate(360deg) scale(1); }
         }
 
         .dirt-path-link {
-          color: #8a7355;
-          text-decoration: underline;
+          color: #718096;
         }
         .dirt-path-link:hover {
-          color: #4a3423;
+          color: #2d3748;
         }
 
         @media (prefers-reduced-motion: reduce) {
           .mini-pokeball { animation: none; }
-          .cloud-a, .cloud-b { animation: none; }
+          .cloud-a, .cloud-b, .sun-glow { animation: none; }
+          .gate-sign:hover .emblem { transform: none; }
         }
       `}</style>
     </div>
