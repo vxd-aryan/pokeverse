@@ -213,10 +213,10 @@ export default function AbilitiesDatabasePage() {
 
         /* Standard ROM Dialog Box */
         .rom-panel {
-          background-color: #ffffff;
+          background-color: #474545;
           border: 4px solid #1e293b;
           border-radius: 8px;
-          box-shadow: inset -2px -2px 0px 0px rgba(0,0,0,0.1), inset 2px 2px 0px 0px rgba(255,255,255,1);
+          box-shadow: inset -2px -2px 0px 0px rgba(0,0,0,0.1), inset 2px 2px 0px 0px rgb(75, 75, 75);
         }
 
         /* Inner Text Box for descriptions */
