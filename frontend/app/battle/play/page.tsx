@@ -20,11 +20,27 @@ interface Pokemon {
   sprite_url?: string;
 }
 
+interface TeamSlot {
+  index: number;
+  name: string;
+  sprite_url: string;
+  types?: string[];
+  current_hp: number;
+  max_hp: number;
+  fainted: boolean;
+  is_active: boolean;
+}
+
 interface GameState {
   turn: number;
   active_pokemon: Pokemon;
   opponent_pokemon: Pokemon;
+  my_team?: TeamSlot[];
+  opponent_team?: TeamSlot[];
   status: 'ongoing' | 'finished' | 'abandoned';
+  must_switch?: boolean;
+  opponent_must_switch?: boolean;
+  action_locked?: boolean;
   winner?: string;
   rematch_requested_by_me?: boolean;
   rematch_votes_count?: number;
@@ -35,7 +51,6 @@ interface BattleLog {
   timestamp: number;
 }
 
-// Local UI phase
 type UiPhase =
   | 'connecting'
   | 'select_pokemon'
@@ -65,19 +80,27 @@ interface RosterPokemonDetail {
   moves: RosterMoveOption[];
 }
 
+// One confirmed party member in the pre-battle builder.
+interface PartyPick {
+  id: number;
+  name: string;
+  sprite_url: string;
+  hp: number;
+  moveKeys: string[];
+  moveNames: string[];
+}
+
+const MAX_PARTY = 3;
+const API_BASE = 'https://pokeverse-backend1.onrender.com';
+
 // --- Token Extraction Helper ---
 const getTrainerToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  
   const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-  
-  if (token && token.includes('.')) {
-    return token;
-  }
+  if (token && token.includes('.')) return token;
   return null;
 };
 
-// --- Crash-Proof Token & Identifier Resolver ---
 const getUserIdFromToken = (token: string): string | null => {
   if (!token) return null;
   const parts = token.split('.');
@@ -99,27 +122,17 @@ const getUserIdFromToken = (token: string): string | null => {
     } catch {}
 
     const decoded = JSON.parse(jsonPayload);
-    return (
-      decoded.userId ||
-      decoded.user_id ||
-      decoded.sub ||
-      decoded.email ||
-      decoded.id ||
-      token
-    );
+    return decoded.userId || decoded.user_id || decoded.sub || decoded.email || decoded.id || token;
   } catch (error) {
     console.warn('Could not parse JWT payload, defaulting to raw token:', error);
     return token;
   }
 };
 
-// --- Sprite Helper ---
 const getPokemonSprite = (pokemon: Pokemon, isBack: boolean = false) => {
   if (pokemon.sprite_url) return pokemon.sprite_url;
   const safeName = pokemon.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (isBack) {
-    return `https://play.pokemonshowdown.com/sprites/ani-back/${safeName}.gif`;
-  }
+  if (isBack) return `https://play.pokemonshowdown.com/sprites/ani-back/${safeName}.gif`;
   return `https://play.pokemonshowdown.com/sprites/ani/${safeName}.gif`;
 };
 
@@ -136,6 +149,7 @@ export default function BattlePlayPage() {
   const [exitReason, setExitReason] = useState<string | null>(null);
   const [isWaitingForTurn, setIsWaitingForTurn] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(false);
+  const [showSwitchPanel, setShowSwitchPanel] = useState(false);
 
   // --- Team Builder State ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -144,6 +158,7 @@ export default function BattlePlayPage() {
   const [selectedSpecies, setSelectedSpecies] = useState<RosterPokemonDetail | null>(null);
   const [isLoadingSpecies, setIsLoadingSpecies] = useState(false);
   const [selectedMoveKeys, setSelectedMoveKeys] = useState<string[]>([]);
+  const [party, setParty] = useState<PartyPick[]>([]);
   const [teamBuilderError, setTeamBuilderError] = useState<string | null>(null);
   const [searchTakingTooLong, setSearchTakingTooLong] = useState(false);
 
@@ -160,23 +175,17 @@ export default function BattlePlayPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const phaseRef = useRef<UiPhase>('connecting');
   const gameStateRef = useRef<GameState | null>(null);
+  const partyRef = useRef<PartyPick[]>([]);
   const intentionalCloseRef = useRef(false);
   const maxRetries = 5;
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { partyRef.current = party; }, [party]);
+  useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
-  useEffect(() => {
-    gameStateRef.current = gameState;
-  }, [gameState]);
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
-
-  // --- Reset animation state at the start of a fresh match or rematch ---
+  // Reset animation state at the start of a fresh match or rematch.
   useEffect(() => {
     if (gameState?.turn === 1) {
       setFaintedSide(null);
@@ -189,10 +198,14 @@ export default function BattlePlayPage() {
     }
   }, [gameState?.turn, gameState?.active_pokemon?.name, gameState?.opponent_pokemon?.name]);
 
-  // --- Stuck-search safety net ---
-  // If we've been sitting in 'searching' for an unusually long time, a
-  // backend hiccup during match creation may have left us with no room and
-  // no way to know it. Offer a manual retry rather than spinning forever.
+  // A newly sent-out Pokémon should never inherit the previous one's faint animation.
+  useEffect(() => {
+    setFaintedSide(null);
+    setHitSide(null);
+    setAttackingSide(null);
+  }, [gameState?.active_pokemon?.name, gameState?.opponent_pokemon?.name]);
+
+  // Stuck-search safety net.
   useEffect(() => {
     if (phase !== 'searching') {
       setSearchTakingTooLong(false);
@@ -207,10 +220,6 @@ export default function BattlePlayPage() {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Plays out ONE log line's visual effect and waits for it to finish
-  // before the queue moves on - this is what creates the "attacker A's
-  // move, effect, and damage fully play out, THEN attacker B's turn
-  // begins" pacing, instead of both attacks' animations firing together.
   const animateLogEntry = async (entry: BattleLog) => {
     const text = entry.text;
     const current = gameStateRef.current;
@@ -257,8 +266,7 @@ export default function BattlePlayPage() {
       return;
     }
 
-    const noEffectMatch = text.match(/^It had no effect on (.+)!$/);
-    if (noEffectMatch) {
+    if (text.match(/^It had no effect on (.+)!$/)) {
       setBattleBanner({ text: 'No Effect!', key: Date.now() });
       await sleep(700);
       setBattleBanner(null);
@@ -296,24 +304,22 @@ export default function BattlePlayPage() {
       }
       return;
     }
-    // Non-battle-effect lines (queue status, rematch chatter, etc.) don't
-    // hold up the sequence.
+
+    // Switch-in lines get a short beat so the sprite swap reads clearly.
+    if (text.match(/^(.+) was sent out!$/) || text.match(/was withdrawn!/)) {
+      await sleep(450);
+    }
   };
 
   const drainAnimationQueue = async () => {
     isProcessingQueueRef.current = true;
     while (animationQueueRef.current.length > 0) {
       const entry = animationQueueRef.current.shift();
-      if (entry) {
-        await animateLogEntry(entry);
-      }
+      if (entry) await animateLogEntry(entry);
     }
     isProcessingQueueRef.current = false;
   };
 
-  // --- Parse newly-arrived battle log lines and enqueue them for
-  // sequential playback, regardless of how quickly the websocket messages
-  // themselves arrived. ---
   useEffect(() => {
     if (!gameState) return;
     const newEntries = logs.slice(lastProcessedLogIndexRef.current);
@@ -321,9 +327,7 @@ export default function BattlePlayPage() {
     if (newEntries.length === 0) return;
 
     animationQueueRef.current.push(...newEntries);
-    if (!isProcessingQueueRef.current) {
-      drainAnimationQueue();
-    }
+    if (!isProcessingQueueRef.current) drainAnimationQueue();
   }, [logs, gameState]);
 
   // --- Broadcast XP Changes to the Top Navbar ---
@@ -332,21 +336,15 @@ export default function BattlePlayPage() {
       let xpChange = 0;
 
       if (phase === 'opponent_left') {
-        xpChange = 50; // Opponent fled/disconnected
+        xpChange = 50;
       } else if (gameState) {
         const isVictory = gameState.winner === gameState.active_pokemon.id;
         const isDraw = !gameState.winner;
-        if (isDraw) {
-          xpChange = 0;
-        } else {
-          xpChange = isVictory ? 50 : -15; // Win/Loss logic
-        }
+        xpChange = isDraw ? 0 : isVictory ? 50 : -15;
       }
 
       if (xpChange !== 0) {
-        window.dispatchEvent(
-          new CustomEvent('update-trainer-xp', { detail: { xpChange } })
-        );
+        window.dispatchEvent(new CustomEvent('update-trainer-xp', { detail: { xpChange } }));
       }
       setXpAwarded(true);
     } else if (phase === 'battling' && xpAwarded) {
@@ -356,10 +354,6 @@ export default function BattlePlayPage() {
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
     try {
-      // NOTE: The backend's /api/battle/ws route reads `token` as a query
-      // parameter directly (defaulting to "guest" if absent) - it does NOT
-      // listen for an `authenticate` message. The token MUST be sent in the
-      // URL for the backend to identify this connection as the right user.
       const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`;
 
       const ws = new WebSocket(wsUrl);
@@ -368,14 +362,9 @@ export default function BattlePlayPage() {
 
       ws.onopen = () => {
         setReconnectAttempts(0);
-
-        // Keep-alive ping to prevent connection timeout on Render
         const pingInterval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action: 'ping' }));
-          }
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: 'ping' }));
         }, 30000);
-
         ws.addEventListener('close', () => clearInterval(pingInterval));
       };
 
@@ -385,20 +374,20 @@ export default function BattlePlayPage() {
 
           switch (data.type) {
             case 'connected':
-              // Backend has registered this socket under the token-derived
-              // user_id, and confirmed there's no battle already in progress
-              // for them. Let the player build their team before queueing,
-              // instead of auto-searching immediately.
               setPhase('select_pokemon');
               break;
 
             case 'state_update':
-              // Also fires immediately on reconnect if the backend finds
-              // this user already in a live room (register_connection
-              // rebinds the socket and pushes current state right away).
               if (data.state) {
                 setGameState(data.state);
-                setIsWaitingForTurn(false); // Reset turn lock on state update
+                // The server is the source of truth for whether this
+                // trainer still owes an action this turn.
+                setIsWaitingForTurn(Boolean(data.state.action_locked));
+                if (data.state.must_switch) {
+                  setShowSwitchPanel(true);
+                } else if (!data.state.action_locked) {
+                  setShowSwitchPanel(false);
+                }
                 if (data.state.status === 'ongoing') {
                   setPhase('battling');
                   setOpponentWantsRematch(false);
@@ -409,24 +398,23 @@ export default function BattlePlayPage() {
                 }
               }
               break;
-              
+
             case 'log':
               if (data.log) setLogs((prev) => [...prev, data.log]);
               break;
-              
+
             case 'game_over':
               setPhase('game_over');
               setIsWaitingForTurn(false);
+              setShowSwitchPanel(false);
               if (data.state) setGameState(data.state);
               break;
-              
+
             case 'rematch_status':
               setOpponentWantsRematch(Boolean(data.opponent_wants_rematch));
-              if (data.text) {
-                setLogs((prev) => [...prev, { text: data.text, timestamp: Date.now() }]);
-              }
+              if (data.text) setLogs((prev) => [...prev, { text: data.text, timestamp: Date.now() }]);
               break;
-              
+
             case 'rematch_declined':
             case 'opponent_left':
             case 'opponent_disconnected':
@@ -434,13 +422,12 @@ export default function BattlePlayPage() {
               setExitReason(data.text || 'Foe disconnected from the battle.');
               setPhase('opponent_left');
               setIsWaitingForTurn(false);
+              setShowSwitchPanel(false);
               break;
-              
+
             case 'error':
               console.error('WebSocket error:', data.message);
-              if (data.message?.includes('auth')) {
-                setPhase('disconnected');
-              }
+              if (data.message?.includes('auth')) setPhase('disconnected');
               break;
           }
         } catch (err) {
@@ -448,21 +435,17 @@ export default function BattlePlayPage() {
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error event:', error);
-      };
+      ws.onerror = (error) => console.error('WebSocket error event:', error);
 
       ws.onclose = () => {
         if (intentionalCloseRef.current) return;
         if (retryCount < maxRetries) {
           const timeout = Math.pow(2, retryCount) * 1000;
-          console.log(`Attempting reconnect in ${timeout}ms (attempt ${retryCount + 1}/${maxRetries})`);
           setTimeout(() => {
             setReconnectAttempts((prev) => prev + 1);
             connectWebSocket(token, retryCount + 1);
           }, timeout);
         } else {
-          console.error('Max reconnection attempts reached');
           setPhase('disconnected');
         }
       };
@@ -489,11 +472,25 @@ export default function BattlePlayPage() {
     };
   }, [connectWebSocket, router]);
 
+  // --- Battle actions ---
   const handleMove = (moveId: string) => {
+    if (gameState?.must_switch) return;
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isWaitingForTurn) {
-      setIsWaitingForTurn(true); // Lock moves until turn updates
+      setIsWaitingForTurn(true);
+      setShowSwitchPanel(false);
       wsRef.current.send(JSON.stringify({ action: 'use_move', moveId }));
     }
+  };
+
+  const handleSwitch = (index: number) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const forced = Boolean(gameState?.must_switch);
+    if (!forced && isWaitingForTurn) return;
+
+    // A forced (post-faint) switch is free; a voluntary one uses this turn.
+    if (!forced) setIsWaitingForTurn(true);
+    setShowSwitchPanel(false);
+    wsRef.current.send(JSON.stringify({ action: 'switch', index }));
   };
 
   // --- Team Builder Handlers ---
@@ -501,9 +498,7 @@ export default function BattlePlayPage() {
     setTeamBuilderError(null);
     setIsSearching(true);
     try {
-      const res = await fetch(
-        `https://pokeverse-backend1.onrender.com/api/battle/roster/search?q=${encodeURIComponent(query)}`
-      );
+      const res = await fetch(`${API_BASE}/api/battle/roster/search?q=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       setSearchResults(Array.isArray(data) ? data : []);
@@ -515,18 +510,13 @@ export default function BattlePlayPage() {
     }
   };
 
-  // Debounced live search: fires automatically ~300ms after the user stops
-  // typing, so suggestions appear without needing to press Search. Skipped
-  // entirely once a species is already selected (search UI is hidden then).
   useEffect(() => {
     if (selectedSpecies) return;
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
-    const timeoutId = setTimeout(() => {
-      runRosterSearch(searchQuery.trim());
-    }, 300);
+    const timeoutId = setTimeout(() => runRosterSearch(searchQuery.trim()), 300);
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, selectedSpecies]);
@@ -542,13 +532,13 @@ export default function BattlePlayPage() {
     setSelectedSpecies(null);
     setSelectedMoveKeys([]);
     try {
-      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/battle/roster/${pokemonId}`);
+      const res = await fetch(`${API_BASE}/api/battle/roster/${pokemonId}`);
       if (!res.ok) throw new Error('Failed to load Pokémon details');
       const data: RosterPokemonDetail = await res.json();
       setSelectedSpecies(data);
     } catch (err) {
       console.error('Failed to load species detail:', err);
-      setTeamBuilderError('Could not load that Pokémon\'s moves. Try another.');
+      setTeamBuilderError("Could not load that Pokémon's moves. Try another.");
     } finally {
       setIsLoadingSpecies(false);
     }
@@ -556,16 +546,62 @@ export default function BattlePlayPage() {
 
   const handleToggleMove = (moveKey: string) => {
     setSelectedMoveKeys((prev) => {
-      if (prev.includes(moveKey)) {
-        return prev.filter((k) => k !== moveKey);
-      }
-      if (prev.length >= 4) return prev; // cap at 4 moves
+      if (prev.includes(moveKey)) return prev.filter((k) => k !== moveKey);
+      if (prev.length >= 4) return prev;
       return [...prev, moveKey];
     });
   };
 
-  const handleConfirmTeam = () => {
+  const clearSpeciesDraft = () => {
+    setSelectedSpecies(null);
+    setSelectedMoveKeys([]);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleAddToParty = () => {
     if (!selectedSpecies || selectedMoveKeys.length === 0) return;
+    if (party.length >= MAX_PARTY) return;
+    if (party.some((p) => p.id === selectedSpecies.id)) {
+      setTeamBuilderError('That Pokémon is already in your party.');
+      return;
+    }
+
+    const moveNames = selectedMoveKeys.map(
+      (key) => selectedSpecies.moves.find((m) => m.move_key === key)?.name || key
+    );
+
+    setParty((prev) => [
+      ...prev,
+      {
+        id: selectedSpecies.id,
+        name: selectedSpecies.name,
+        sprite_url: selectedSpecies.sprite_url,
+        hp: selectedSpecies.hp,
+        moveKeys: [...selectedMoveKeys],
+        moveNames,
+      },
+    ]);
+    clearSpeciesDraft();
+  };
+
+  const handleRemoveFromParty = (index: number) => {
+    setParty((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMovePartyMember = (index: number, direction: -1 | 1) => {
+    setParty((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const sendFindMatch = useCallback(() => {
+    const currentParty = partyRef.current;
+    if (currentParty.length === 0) return;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
     setPhase('searching');
@@ -573,12 +609,11 @@ export default function BattlePlayPage() {
       JSON.stringify({
         action: 'find_match',
         selection: {
-          pokemon_id: selectedSpecies.id,
-          moves: selectedMoveKeys,
+          team: currentParty.map((p) => ({ pokemon_id: p.id, moves: p.moveKeys })),
         },
       })
     );
-  };
+  }, []);
 
   const handleRematch = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -597,7 +632,7 @@ export default function BattlePlayPage() {
   };
 
   const getHpColor = (current: number, max: number) => {
-    const ratio = current / max;
+    const ratio = max > 0 ? current / max : 0;
     if (ratio > 0.5) return 'bg-emerald-400';
     if (ratio > 0.2) return 'bg-yellow-400';
     return 'bg-red-500';
@@ -629,12 +664,15 @@ export default function BattlePlayPage() {
   }
 
   if (phase === 'select_pokemon') {
+    const partyFull = party.length >= MAX_PARTY;
+
     return (
       <div className="min-h-[calc(100vh-64px)] bg-[#1c2331] text-white font-mono p-4">
-        <div className="max-w-3xl mx-auto">
-          <h1 className="text-2xl font-black uppercase tracking-widest mb-1">Build Your Team</h1>
+        <div className="max-w-3xl mx-auto pb-10">
+          <h1 className="text-2xl font-black uppercase tracking-widest mb-1">Build Your Party</h1>
           <p className="text-sm text-gray-400 mb-6">
-            Search any Pokémon, then pick up to 4 of its real moves before queueing for a match.
+            Choose up to {MAX_PARTY} Pokémon in battle order. The one at the top leads. You can switch mid-battle,
+            but a switch uses your turn.
           </p>
 
           {teamBuilderError && (
@@ -643,152 +681,215 @@ export default function BattlePlayPage() {
             </div>
           )}
 
-          {/* Search */}
-          <form onSubmit={handleSearchPokemon} className="relative mb-4">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Start typing a Pokémon's name..."
-                autoComplete="off"
-                className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-red-400"
-              />
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="bg-red-500 hover:bg-red-400 disabled:opacity-50 px-4 py-2 rounded-lg font-bold text-sm uppercase"
-              >
-                {isSearching ? '...' : 'Search'}
-              </button>
+          {/* --- Current party --- */}
+          <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-black uppercase tracking-widest text-gray-300">
+                Your Party
+              </h2>
+              <span className="text-xs text-gray-400">{party.length}/{MAX_PARTY}</span>
             </div>
 
-            {/* Live suggestions dropdown - appears as the user types */}
-            {searchQuery.trim() && !selectedSpecies && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-72 overflow-y-auto">
-                {isSearching && searchResults.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-400 animate-pulse">Searching...</div>
-                ) : searchResults.length > 0 ? (
-                  searchResults.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        handleSelectSpecies(p.id);
-                        setSearchQuery(p.name);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
-                    >
-                      {p.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-4 py-3 text-sm text-gray-500">No Pokémon found.</div>
-                )}
+            {party.length === 0 ? (
+              <p className="text-xs text-gray-500 py-4 text-center">
+                No Pokémon added yet — search below and add your lead.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {party.map((member, index) => (
+                  <div
+                    key={`${member.id}-${index}`}
+                    className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-2"
+                  >
+                    <span className={`text-[10px] font-black px-2 py-1 rounded ${index === 0 ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-300'}`}>
+                      {index === 0 ? 'LEAD' : `#${index + 1}`}
+                    </span>
+                    {member.sprite_url && (
+                      <img src={member.sprite_url} alt={member.name} className="w-12 h-12 object-contain" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm uppercase truncate">{member.name}</div>
+                      <div className="text-[10px] text-gray-400 truncate">
+                        HP {member.hp} · {member.moveNames.join(', ')}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleMovePartyMember(index, -1)}
+                        disabled={index === 0}
+                        className="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-xs"
+                        aria-label="Move up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => handleMovePartyMember(index, 1)}
+                        disabled={index === party.length - 1}
+                        className="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-xs"
+                        aria-label="Move down"
+                      >
+                        ▼
+                      </button>
+                      <button
+                        onClick={() => handleRemoveFromParty(index)}
+                        className="w-7 h-7 rounded bg-red-600 hover:bg-red-500 text-xs font-bold"
+                        aria-label="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-          </form>
 
-          {/* Loading species detail */}
-          {isLoadingSpecies && (
-            <div className="text-center text-sm text-gray-400 animate-pulse py-6">
-              Loading moves...
-            </div>
-          )}
+            <button
+              onClick={sendFindMatch}
+              disabled={party.length === 0}
+              className="w-full mt-4 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed py-3 rounded-xl font-black uppercase tracking-wide"
+            >
+              Confirm Party &amp; Find Match
+            </button>
+            {party.length > 0 && party.length < MAX_PARTY && (
+              <p className="text-[10px] text-gray-500 text-center mt-2">
+                You can queue with {party.length}; empty slots are filled with random Pokémon.
+              </p>
+            )}
+          </div>
 
-          {/* Selected Species + Move Picker */}
-          {selectedSpecies && (
-            <div className="bg-gray-800 border border-gray-600 rounded-xl p-4">
-              <div className="flex items-center gap-4 mb-4">
-                {selectedSpecies.sprite_url && (
-                  <img
-                    src={selectedSpecies.sprite_url}
-                    alt={selectedSpecies.name}
-                    className="w-20 h-20 object-contain"
+          {/* --- Add a member --- */}
+          {!partyFull && (
+            <>
+              <h2 className="text-sm font-black uppercase tracking-widest text-gray-300 mb-2">
+                Add Pokémon {party.length + 1}
+              </h2>
+
+              <form onSubmit={handleSearchPokemon} className="relative mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Start typing a Pokémon's name..."
+                    autoComplete="off"
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-red-400"
                   />
-                )}
-                <div>
-                  <h2 className="text-lg font-black uppercase">{selectedSpecies.name}</h2>
-                  <p className="text-xs text-gray-400">HP: {selectedSpecies.hp}</p>
                   <button
-                    onClick={() => {
-                      setSelectedSpecies(null);
-                      setSelectedMoveKeys([]);
-                    }}
-                    className="text-xs text-red-400 hover:text-red-300 underline mt-1"
+                    type="submit"
+                    disabled={isSearching}
+                    className="bg-red-500 hover:bg-red-400 disabled:opacity-50 px-4 py-2 rounded-lg font-bold text-sm uppercase"
                   >
-                    Choose a different Pokémon
+                    {isSearching ? '...' : 'Search'}
                   </button>
                 </div>
-              </div>
 
-              <p className="text-xs text-gray-400 mb-2">
-                Pick up to 4 moves ({selectedMoveKeys.length}/4 selected):
-              </p>
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {selectedSpecies.moves.map((move) => {
-                  const isSelected = selectedMoveKeys.includes(move.move_key);
-                  return (
-                    <button
-                      key={move.move_key}
-                      onClick={() => handleToggleMove(move.move_key)}
-                      disabled={!isSelected && selectedMoveKeys.length >= 4}
-                      className={`border-2 rounded-lg p-2 text-left transition-colors disabled:opacity-40 ${
-                        isSelected
-                          ? 'bg-red-500/20 border-red-400'
-                          : 'bg-gray-900 border-gray-700 hover:border-gray-500'
-                      }`}
-                    >
-                      <div className="font-bold text-sm">{move.name}</div>
-                      <div className="text-[10px] text-gray-400 uppercase">
-                        {move.type} · Power {move.power}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                {searchQuery.trim() && !selectedSpecies && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-72 overflow-y-auto">
+                    {isSearching && searchResults.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-400 animate-pulse">Searching...</div>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((p) => {
+                        const alreadyPicked = party.some((m) => m.id === p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            disabled={alreadyPicked}
+                            onClick={() => {
+                              handleSelectSpecies(p.id);
+                              setSearchQuery(p.name);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors border-b border-gray-700 last:border-b-0"
+                          >
+                            {p.name}
+                            {alreadyPicked && <span className="text-[10px] text-gray-500 ml-2">in party</span>}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500">No Pokémon found.</div>
+                    )}
+                  </div>
+                )}
+              </form>
 
-              <button
-                onClick={handleConfirmTeam}
-                disabled={selectedMoveKeys.length === 0}
-                className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed py-3 rounded-xl font-black uppercase tracking-wide"
-              >
-                Confirm Team &amp; Find Match
-              </button>
-            </div>
+              {isLoadingSpecies && (
+                <div className="text-center text-sm text-gray-400 animate-pulse py-6">Loading moves...</div>
+              )}
+
+              {selectedSpecies && (
+                <div className="bg-gray-800 border border-gray-600 rounded-xl p-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    {selectedSpecies.sprite_url && (
+                      <img src={selectedSpecies.sprite_url} alt={selectedSpecies.name} className="w-20 h-20 object-contain" />
+                    )}
+                    <div>
+                      <h2 className="text-lg font-black uppercase">{selectedSpecies.name}</h2>
+                      <p className="text-xs text-gray-400">HP: {selectedSpecies.hp}</p>
+                      <button
+                        onClick={clearSpeciesDraft}
+                        className="text-xs text-red-400 hover:text-red-300 underline mt-1"
+                      >
+                        Choose a different Pokémon
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-400 mb-2">
+                    Pick up to 4 moves ({selectedMoveKeys.length}/4 selected):
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {selectedSpecies.moves.map((move) => {
+                      const isSelected = selectedMoveKeys.includes(move.move_key);
+                      return (
+                        <button
+                          key={move.move_key}
+                          onClick={() => handleToggleMove(move.move_key)}
+                          disabled={!isSelected && selectedMoveKeys.length >= 4}
+                          className={`border-2 rounded-lg p-2 text-left transition-colors disabled:opacity-40 ${
+                            isSelected ? 'bg-red-500/20 border-red-400' : 'bg-gray-900 border-gray-700 hover:border-gray-500'
+                          }`}
+                        >
+                          <div className="font-bold text-sm">{move.name}</div>
+                          <div className="text-[10px] text-gray-400 uppercase">
+                            {move.type} · Power {move.power}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={handleAddToParty}
+                    disabled={selectedMoveKeys.length === 0}
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed py-3 rounded-xl font-black uppercase tracking-wide"
+                  >
+                    Add to Party
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
     );
   }
 
+  const mustSwitch = Boolean(gameState?.must_switch);
+  const myTeam = gameState?.my_team || [];
+  const opponentTeam = gameState?.opponent_team || [];
+  const switchableCount = myTeam.filter((m) => !m.fainted && !m.is_active).length;
+
   return (
     <>
       <style>{`
-        @keyframes bob {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
-        .animate-bob {
-          animation: bob 3s infinite ease-in-out;
-        }
+        @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .animate-bob { animation: bob 3s infinite ease-in-out; }
 
-        @keyframes attackLungeRight {
-          0% { transform: translateX(0); }
-          40% { transform: translateX(-24px) scale(1.05); }
-          100% { transform: translateX(0); }
-        }
-        @keyframes attackLungeLeft {
-          0% { transform: translateX(0); }
-          40% { transform: translateX(24px) scale(1.05); }
-          100% { transform: translateX(0); }
-        }
-        .animate-attack-lunge-left {
-          animation: attackLungeRight 0.45s ease-in-out;
-        }
-        .animate-attack-lunge-right {
-          animation: attackLungeLeft 0.45s ease-in-out;
-        }
+        @keyframes attackLungeRight { 0% { transform: translateX(0); } 40% { transform: translateX(-24px) scale(1.05); } 100% { transform: translateX(0); } }
+        @keyframes attackLungeLeft { 0% { transform: translateX(0); } 40% { transform: translateX(24px) scale(1.05); } 100% { transform: translateX(0); } }
+        .animate-attack-lunge-left { animation: attackLungeRight 0.45s ease-in-out; }
+        .animate-attack-lunge-right { animation: attackLungeLeft 0.45s ease-in-out; }
 
         @keyframes hitShake {
           0%, 100% { transform: translateX(0); filter: brightness(1); }
@@ -797,29 +898,21 @@ export default function BattlePlayPage() {
           60% { transform: translateX(-4px); filter: brightness(1.4); }
           80% { transform: translateX(4px); filter: brightness(1.4); }
         }
-        .animate-hit-shake {
-          animation: hitShake 0.45s ease-in-out;
-        }
-        .animate-hit-shake-crit {
-          animation: hitShake 0.45s ease-in-out 2;
-        }
+        .animate-hit-shake { animation: hitShake 0.45s ease-in-out; }
+        .animate-hit-shake-crit { animation: hitShake 0.45s ease-in-out 2; }
 
         @keyframes faintDrop {
           0% { transform: translateY(0) rotate(0deg); opacity: 1; filter: grayscale(0); }
           100% { transform: translateY(40px) rotate(8deg); opacity: 0; filter: grayscale(1); }
         }
-        .animate-faint-drop {
-          animation: faintDrop 0.7s ease-in forwards;
-        }
+        .animate-faint-drop { animation: faintDrop 0.7s ease-in forwards; }
 
         @keyframes floatDamage {
           0% { transform: translateY(0); opacity: 0; }
           15% { opacity: 1; }
           100% { transform: translateY(-40px); opacity: 0; }
         }
-        .animate-float-damage {
-          animation: floatDamage 1s ease-out forwards;
-        }
+        .animate-float-damage { animation: floatDamage 1s ease-out forwards; }
 
         @keyframes bannerPop {
           0% { transform: scale(0.6) translateY(10px); opacity: 0; }
@@ -827,12 +920,15 @@ export default function BattlePlayPage() {
           80% { transform: scale(1) translateY(0); opacity: 1; }
           100% { transform: scale(1) translateY(-6px); opacity: 0; }
         }
-        .animate-banner-pop {
-          animation: bannerPop 0.9s ease-out forwards;
+        .animate-banner-pop { animation: bannerPop 0.9s ease-out forwards; }
+
+        @keyframes sendOut {
+          0% { transform: translateY(30px) scale(0.5); opacity: 0; }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
         }
+        .animate-send-out { animation: sendOut 0.4s ease-out; }
       `}</style>
 
-      {/* Floating "Super Effective!" / "Critical Hit!" banner */}
       {battleBanner && (
         <div
           key={battleBanner.key}
@@ -845,25 +941,52 @@ export default function BattlePlayPage() {
       )}
 
       <div className="min-h-[calc(100vh-64px)] bg-[#1c2331] flex items-center justify-center p-4 font-mono select-none">
-        
-        {/* --- BATTLE INTERFACE --- */}
         <div className="w-full max-w-4xl bg-gray-300 p-2 rounded-3xl shadow-2xl border-b-8 border-gray-400">
           <div className="bg-gray-800 p-6 rounded-2xl shadow-inner border-4 border-gray-900">
-            
             <div className="bg-black rounded-lg overflow-hidden border-8 border-gray-700 aspect-[4/3] flex flex-col relative shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
-              
               {gameState ? (
                 <>
                   {/* --- BATTLEFIELD SCENE --- */}
                   <div className="relative flex-grow bg-gradient-to-b from-sky-300 to-sky-100 overflow-hidden">
-                    
-                    {/* Background Elements */}
                     <div className="absolute top-10 left-10 w-32 h-12 bg-white/40 rounded-full blur-md"></div>
                     <div className="absolute top-16 right-20 w-48 h-16 bg-white/40 rounded-full blur-md"></div>
 
+                    {/* Party indicator: opponent (top-right), mine (bottom-left) */}
+                    <div className="absolute top-3 right-4 flex gap-1.5 z-20">
+                      {opponentTeam.map((slot) => (
+                        <span
+                          key={slot.index}
+                          title={slot.fainted ? `${slot.name} (fainted)` : slot.name}
+                          className={`w-3.5 h-3.5 rounded-full border-2 ${
+                            slot.fainted
+                              ? 'bg-gray-400 border-gray-600'
+                              : slot.is_active
+                              ? 'bg-red-500 border-red-800'
+                              : 'bg-white border-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="absolute bottom-3 left-4 flex gap-1.5 z-20">
+                      {myTeam.map((slot) => (
+                        <span
+                          key={slot.index}
+                          title={slot.fainted ? `${slot.name} (fainted)` : slot.name}
+                          className={`w-3.5 h-3.5 rounded-full border-2 ${
+                            slot.fainted
+                              ? 'bg-gray-400 border-gray-600'
+                              : slot.is_active
+                              ? 'bg-emerald-500 border-emerald-800'
+                              : 'bg-white border-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
                     {/* Opponent Pokemon */}
                     <div className="absolute top-[25%] right-[10%] w-[45%] h-[15%] bg-green-500/80 rounded-[50%] border-t-8 border-green-400 shadow-[inset_0_-10px_20px_rgba(0,100,0,0.4)]">
-                      <img 
+                      <img
+                        key={gameState.opponent_pokemon.name}
                         src={getPokemonSprite(gameState.opponent_pokemon, false)}
                         alt={gameState.opponent_pokemon.name}
                         className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-40 h-40 object-contain drop-shadow-2xl ${
@@ -885,12 +1008,12 @@ export default function BattlePlayPage() {
                         </span>
                       )}
                     </div>
-                    
+
                     {/* Opponent HP */}
                     <div className="absolute top-6 left-6 w-[40%] bg-stone-100 border-4 border-gray-600 rounded-bl-2xl rounded-tr-xl p-3 shadow-xl transform skew-x-[-5deg]">
                       <div className="transform skew-x-[5deg]">
                         <div className="flex justify-between items-end mb-1 border-b-2 border-gray-300 pb-1">
-                          <h3 className="font-bold uppercase tracking-widest text-gray-800 text-sm md:text-lg">
+                          <h3 className="font-bold uppercase tracking-widest text-gray-800 text-sm md:text-lg truncate">
                             {gameState.opponent_pokemon.name}
                           </h3>
                           <span className="text-xs font-bold text-gray-600">Lv50</span>
@@ -912,7 +1035,8 @@ export default function BattlePlayPage() {
 
                     {/* Player Pokemon */}
                     <div className="absolute bottom-[20%] left-[5%] w-[55%] h-[20%] bg-green-500/90 rounded-[50%] border-t-8 border-green-400 shadow-[inset_0_-10px_20px_rgba(0,100,0,0.5)]">
-                      <img 
+                      <img
+                        key={gameState.active_pokemon.name}
                         src={getPokemonSprite(gameState.active_pokemon, true)}
                         alt={gameState.active_pokemon.name}
                         className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-56 h-56 object-contain drop-shadow-2xl ${
@@ -939,7 +1063,7 @@ export default function BattlePlayPage() {
                     <div className="absolute bottom-28 right-6 w-[45%] bg-stone-100 border-4 border-gray-600 rounded-tl-2xl rounded-br-xl p-3 shadow-xl transform skew-x-[-5deg]">
                       <div className="transform skew-x-[5deg]">
                         <div className="flex justify-between items-end mb-1 border-b-2 border-gray-300 pb-1">
-                          <h3 className="font-bold uppercase tracking-widest text-gray-800 text-sm md:text-lg">
+                          <h3 className="font-bold uppercase tracking-widest text-gray-800 text-sm md:text-lg truncate">
                             {gameState.active_pokemon.name}
                           </h3>
                           <span className="text-xs font-bold text-gray-600">Lv50</span>
@@ -965,7 +1089,6 @@ export default function BattlePlayPage() {
 
                   {/* --- BOTTOM UI: Logs & Actions --- */}
                   <div className="h-48 bg-stone-800 border-t-8 border-stone-900 flex p-3 gap-3 relative z-10 shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
-                    
                     {/* Battle Logs */}
                     <div className="w-1/2 bg-stone-100 border-[6px] border-double border-gray-500 rounded-xl p-4 overflow-y-auto custom-scrollbar shadow-inner text-gray-800 font-bold text-sm md:text-base leading-relaxed">
                       {logs.length === 0 ? (
@@ -984,15 +1107,11 @@ export default function BattlePlayPage() {
                     <div className="w-1/2 bg-white rounded-xl border-[6px] border-double border-blue-900 p-2 shadow-inner">
                       {phase === 'opponent_left' ? (
                         <div className="flex flex-col items-center justify-center h-full p-2 space-y-1 text-center font-sans tracking-wide">
-                          <h2 className="text-xl md:text-2xl font-black uppercase text-[#00b34d] mb-1">
-                            VICTORY!
-                          </h2>
+                          <h2 className="text-xl md:text-2xl font-black uppercase text-[#00b34d] mb-1">VICTORY!</h2>
                           <div className="text-gray-600 font-bold text-xs md:text-sm">
                             {exitReason || 'Foe left the battle.'}
                           </div>
-                          <div className="text-[#00b34d] font-bold text-sm md:text-md">
-                            +50 XP
-                          </div>
+                          <div className="text-[#00b34d] font-bold text-sm md:text-md">+50 XP</div>
                           <div className="grid grid-cols-2 gap-3 w-full mt-2">
                             <button
                               disabled
@@ -1017,12 +1136,8 @@ export default function BattlePlayPage() {
                             if (isDraw) {
                               return (
                                 <>
-                                  <h2 className="text-xl md:text-2xl font-black uppercase text-yellow-500">
-                                    DRAW!
-                                  </h2>
-                                  <div className="font-bold text-sm md:text-md text-yellow-500">
-                                    +0 XP
-                                  </div>
+                                  <h2 className="text-xl md:text-2xl font-black uppercase text-yellow-500">DRAW!</h2>
+                                  <div className="font-bold text-sm md:text-md text-yellow-500">+0 XP</div>
                                 </>
                               );
                             }
@@ -1050,8 +1165,8 @@ export default function BattlePlayPage() {
                               onClick={handleRematch}
                               disabled={iVotedRematch}
                               className={`px-2 py-3 rounded-xl font-bold uppercase text-xs md:text-sm transition-all ${
-                                iVotedRematch 
-                                  ? 'bg-gray-400 border-b-[5px] border-gray-500 text-gray-200 opacity-80' 
+                                iVotedRematch
+                                  ? 'bg-gray-400 border-b-[5px] border-gray-500 text-gray-200 opacity-80'
                                   : 'bg-[#00cc55] border-b-[5px] border-[#009940] text-white hover:bg-[#00e660] hover:border-b-4 hover:translate-y-[1px] active:translate-y-[5px] active:border-b-0'
                               }`}
                             >
@@ -1065,36 +1180,96 @@ export default function BattlePlayPage() {
                             </button>
                           </div>
                         </div>
+                      ) : mustSwitch || showSwitchPanel ? (
+                        <div className="flex flex-col h-full">
+                          <div className="text-center mb-1">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-blue-900">
+                              {mustSwitch ? 'Choose your next Pokémon' : 'Switch (uses your turn)'}
+                            </span>
+                          </div>
+                          <div className="flex-1 grid grid-cols-1 gap-1.5 overflow-y-auto">
+                            {myTeam.map((slot) => {
+                              const disabled = slot.fainted || slot.is_active;
+                              return (
+                                <button
+                                  key={slot.index}
+                                  onClick={() => handleSwitch(slot.index)}
+                                  disabled={disabled}
+                                  className={`flex items-center gap-2 border-2 rounded-lg px-2 py-1 text-left transition-colors ${
+                                    disabled
+                                      ? 'bg-gray-100 border-gray-300 opacity-50 cursor-not-allowed'
+                                      : 'bg-blue-50 border-blue-400 hover:bg-blue-100 active:scale-95'
+                                  }`}
+                                >
+                                  {slot.sprite_url && (
+                                    <img src={slot.sprite_url} alt={slot.name} className="w-8 h-8 object-contain" />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[11px] font-black uppercase text-gray-800 truncate">
+                                      {slot.name}
+                                      {slot.is_active && <span className="text-[9px] text-gray-500 ml-1">(out)</span>}
+                                      {slot.fainted && <span className="text-[9px] text-red-500 ml-1">(fainted)</span>}
+                                    </div>
+                                    <div className="w-full bg-gray-300 h-1.5 rounded-full overflow-hidden mt-0.5">
+                                      <div
+                                        className={`h-full ${getHpColor(slot.current_hp, slot.max_hp)}`}
+                                        style={{ width: `${(slot.current_hp / slot.max_hp) * 100}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-gray-600">
+                                    {slot.current_hp}/{slot.max_hp}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {!mustSwitch && (
+                            <button
+                              onClick={() => setShowSwitchPanel(false)}
+                              className="mt-1 text-[10px] font-bold uppercase text-gray-500 hover:text-gray-700"
+                            >
+                              ← Back to moves
+                            </button>
+                          )}
+                        </div>
                       ) : (
-                        <div className="grid grid-cols-2 grid-rows-2 gap-2 h-full">
-                          {gameState.active_pokemon.moves.map((move, idx) => {
-                            const getMoveColor = (idx: number) => {
+                        <div className="flex flex-col h-full gap-1.5">
+                          <div className="grid grid-cols-2 grid-rows-2 gap-2 flex-1">
+                            {gameState.active_pokemon.moves.map((move, idx) => {
                               const colors = [
-                                'bg-red-100 border-red-400 hover:bg-red-200', 
-                                'bg-blue-100 border-blue-400 hover:bg-blue-200', 
-                                'bg-green-100 border-green-400 hover:bg-green-200', 
-                                'bg-yellow-100 border-yellow-400 hover:bg-yellow-200'
+                                'bg-red-100 border-red-400 hover:bg-red-200',
+                                'bg-blue-100 border-blue-400 hover:bg-blue-200',
+                                'bg-green-100 border-green-400 hover:bg-green-200',
+                                'bg-yellow-100 border-yellow-400 hover:bg-yellow-200',
                               ];
-                              return colors[idx % 4];
-                            };
 
-                            return (
-                              <button
-                                key={move.id}
-                                onClick={() => handleMove(move.id)}
-                                disabled={phase !== 'battling' || isWaitingForTurn}
-                                className={`${getMoveColor(idx)} border-4 rounded-lg p-2 flex flex-col justify-center items-center transition-transform disabled:opacity-50 shadow-sm active:scale-95`}
-                              >
-                                <span className="font-black text-gray-800 text-sm md:text-md uppercase tracking-wide">
-                                  {move.name}
-                                </span>
-                                <div className="flex justify-between w-full mt-1 px-1 text-[10px] text-gray-600 font-bold uppercase">
-                                  <span>{move.type}</span>
-                                  <span>PP {move.power}</span>
-                                </div>
-                              </button>
-                            );
-                          })}
+                              return (
+                                <button
+                                  key={move.id}
+                                  onClick={() => handleMove(move.id)}
+                                  disabled={phase !== 'battling' || isWaitingForTurn}
+                                  className={`${colors[idx % 4]} border-4 rounded-lg p-1 flex flex-col justify-center items-center transition-transform disabled:opacity-50 shadow-sm active:scale-95`}
+                                >
+                                  <span className="font-black text-gray-800 text-xs md:text-sm uppercase tracking-wide text-center leading-tight">
+                                    {move.name}
+                                  </span>
+                                  <div className="flex justify-between w-full mt-0.5 px-1 text-[9px] text-gray-600 font-bold uppercase">
+                                    <span>{move.type}</span>
+                                    <span>PWR {move.power}</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            onClick={() => setShowSwitchPanel(true)}
+                            disabled={phase !== 'battling' || isWaitingForTurn || switchableCount === 0}
+                            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors"
+                          >
+                            {switchableCount === 0 ? 'No Switches Left' : `Switch Pokémon (${switchableCount})`}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1117,7 +1292,7 @@ export default function BattlePlayPage() {
                         This is taking longer than usual - the match server may have hit a snag.
                       </p>
                       <button
-                        onClick={handleConfirmTeam}
+                        onClick={sendFindMatch}
                         className="bg-red-500 hover:bg-red-400 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide"
                       >
                         Retry Find Match
