@@ -74,7 +74,7 @@ export default function AbilitiesDatabasePage() {
       {/* Header */}
       <div className="mb-6 ml-2">
         <h1 className="text-xl md:text-2xl text-white uppercase tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
-          Abilities Database
+          Abilities
         </h1>
         <p className="text-[10px] md:text-xs text-white/90 mt-2 drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">
           Explore the genetic traits and passive effects of all species.
@@ -236,12 +236,12 @@ export default function AbilitiesDatabasePage() {
         /* Blocky Custom Scrollbar */
         .rom-scrollbar::-webkit-scrollbar { width: 12px; }
         .rom-scrollbar::-webkit-scrollbar-track { 
-          background: #e2e8f0; 
-          border-left: 2px solid #cbd5e1;
+          background: #46484a; 
+          border-left: 2px solid #515c68;
         }
         .rom-scrollbar::-webkit-scrollbar-thumb { 
           background: #64748b; 
-          border: 2px solid #e2e8f0;
+          border: 2px solid #606469;
         }
         .rom-scrollbar::-webkit-scrollbar-thumb:hover { 
           background: #475569; 
