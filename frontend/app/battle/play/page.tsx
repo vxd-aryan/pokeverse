@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import TypeChart from '@/components/TypeChart';
 
 // --- TypeScript Interfaces ---
 interface Move {
@@ -18,6 +19,7 @@ interface Pokemon {
   max_hp: number;
   moves: Move[];
   sprite_url?: string;
+  types?: string[];
 }
 
 interface TeamSlot {
@@ -150,6 +152,7 @@ export default function BattlePlayPage() {
   const [isWaitingForTurn, setIsWaitingForTurn] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(false);
   const [showSwitchPanel, setShowSwitchPanel] = useState(false);
+  const [showTypeChart, setShowTypeChart] = useState(false);
 
   // --- Team Builder State ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -929,6 +932,22 @@ export default function BattlePlayPage() {
         .animate-send-out { animation: sendOut 0.4s ease-out; }
       `}</style>
 
+      {/* --- Type Chart overlay --- */}
+      {showTypeChart && gameState && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70"
+          onClick={() => setShowTypeChart(false)}
+        >
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <TypeChart
+              compact
+              initialTypes={gameState.opponent_pokemon.types}
+              onClose={() => setShowTypeChart(false)}
+            />
+          </div>
+        </div>
+      )}
+
       {battleBanner && (
         <div
           key={battleBanner.key}
@@ -1263,13 +1282,21 @@ export default function BattlePlayPage() {
                             })}
                           </div>
 
-                          <button
-                            onClick={() => setShowSwitchPanel(true)}
-                            disabled={phase !== 'battling' || isWaitingForTurn || switchableCount === 0}
-                            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors"
-                          >
-                            {switchableCount === 0 ? 'No Switches Left' : `Switch Pokémon (${switchableCount})`}
-                          </button>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => setShowSwitchPanel(true)}
+                              disabled={phase !== 'battling' || isWaitingForTurn || switchableCount === 0}
+                              className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors"
+                            >
+                              {switchableCount === 0 ? 'No Switches Left' : `Switch Pokémon (${switchableCount})`}
+                            </button>
+                            <button
+                              onClick={() => setShowTypeChart(true)}
+                              className="px-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg py-1.5 text-[11px] font-black uppercase tracking-wider transition-colors"
+                            >
+                              Types
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
