@@ -346,9 +346,11 @@ export default function PokemonProfilePage() {
             {activeTab === 'moves' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-2">
                 {pokemon.moves.map((m: any) => (
-                  <div key={m.move.name} className="tile-card text-center py-3">
-                    <span className="text-sm font-medium text-[#D3D3DA] capitalize">{m.move.name.replace('-', ' ')}</span>
-                  </div>
+                  <Link href={`/explore/moves/${m.move.name}`} key={m.move.name}>
+                    <div className="tile-card text-center py-3 cursor-pointer">
+                      <span className="text-sm font-medium text-[#D3D3DA] capitalize">{m.move.name.replace('-', ' ')}</span>
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}
