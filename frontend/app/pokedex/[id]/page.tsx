@@ -94,6 +94,7 @@ export default function PokemonProfilePage() {
 
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(true);
+  const [isShiny, setIsShiny] = useState(false);
 
   useEffect(() => {
     async function fetchCompleteProfile() {
@@ -130,6 +131,12 @@ export default function PokemonProfilePage() {
     if (id) fetchCompleteProfile();
   }, [id]);
 
+  // Reset the shiny toggle whenever a different Pokémon is loaded, so it
+  // doesn't stay "on" after navigating from one profile to another.
+  useEffect(() => {
+    setIsShiny(false);
+  }, [id]);
+
   if (loading) {
     return (
       <div className="ball-root flex flex-col justify-center items-center h-[60vh] w-full gap-5">
@@ -153,7 +160,11 @@ export default function PokemonProfilePage() {
   }
 
   // Safe Formatting Helpers
-  const profileImage = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemon.id}.png`;
+  const normalImage = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemon.id}.png`;
+  const shinyImage =
+    pokemon.sprites?.other?.['official-artwork']?.front_shiny ||
+    `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${pokemon.id}.png`;
+  const profileImage = isShiny ? shinyImage : normalImage;
 
   // Safely find the english flavor text, fallback if none exists
   const flavorEntry = species?.flavor_text_entries?.find((f: any) => f.language.name === 'en');
@@ -217,6 +228,7 @@ export default function PokemonProfilePage() {
               <span className="dex-no-chip">
                 #{pokemon.id.toString().padStart(3, '0')}
               </span>
+              {isShiny && <span className="shiny-chip">✨ Shiny</span>}
             </h1>
             <p className="text-[#A5A5AE] mt-1 italic">"{flavorText}"</p>
           </div>
@@ -225,15 +237,26 @@ export default function PokemonProfilePage() {
         {/* Top Section: Overview Card */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="col-span-1 flex justify-center items-center py-4">
-            <div className="capture-orb" style={{ ['--glow' as any]: primaryColor }}>
+            <div
+              className={`capture-orb ${isShiny ? 'capture-orb--shiny' : ''}`}
+              style={{ ['--glow' as any]: primaryColor }}
+            >
               <div className="capture-window">
                 <img
                   src={profileImage}
-                  alt={pokemon.name}
+                  alt={isShiny ? `${pokemon.name} (shiny)` : pokemon.name}
                   className="w-full max-w-[150px] transform hover:scale-110 transition-transform duration-500"
                   onError={(e) => { (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/0.png' }}
                 />
               </div>
+              <button
+                onClick={() => setIsShiny((prev) => !prev)}
+                className={`shiny-toggle ${isShiny ? 'shiny-toggle--active' : ''}`}
+                aria-pressed={isShiny}
+                title={isShiny ? 'Show normal coloring' : 'Show shiny coloring'}
+              >
+                ✨
+              </button>
             </div>
           </div>
 
@@ -447,6 +470,9 @@ export default function PokemonProfilePage() {
           align-items: center;
           justify-content: center;
         }
+        .capture-orb--shiny {
+          box-shadow: 0 0 50px -4px #FFD34E, 0 20px 40px -20px rgba(0,0,0,0.6);
+        }
         .capture-window {
           width: 158px;
           height: 158px;
@@ -457,6 +483,46 @@ export default function PokemonProfilePage() {
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+
+        .shiny-toggle {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          width: 34px;
+          height: 34px;
+          border-radius: 9999px;
+          background: #0F0F11;
+          border: 2px solid rgba(255,255,255,0.15);
+          font-size: 16px;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+        .shiny-toggle:hover {
+          transform: scale(1.1);
+          border-color: #FFD34E;
+        }
+        .shiny-toggle--active {
+          background: linear-gradient(180deg, #FFE9A8, #FFD34E);
+          border-color: #FFD34E;
+          box-shadow: 0 0 14px -2px #FFD34E;
+        }
+
+        .shiny-chip {
+          font-family: 'Inter', ui-sans-serif, sans-serif;
+          font-size: 12px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #17171A;
+          background: linear-gradient(90deg, #FFE9A8, #FFD34E);
+          padding: 4px 10px;
+          border-radius: 999px;
+          box-shadow: 0 2px 8px -2px rgba(255,211,78,0.6);
         }
 
         .type-pill {
