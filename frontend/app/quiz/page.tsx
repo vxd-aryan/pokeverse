@@ -193,7 +193,7 @@ export default function QuizHub() {
               ⚡
             </div>
             <span className="dex-label text-[9px] tracking-widest text-[#F8D030]/70 relative z-10">
-              ELECTRIC TYPE · DAILY
+              
             </span>
             <h3 className="dex-display text-lg md:text-xl text-[#F8D030] mt-3 mb-3 relative z-10">
               Daily Gauntlet
@@ -212,13 +212,13 @@ export default function QuizHub() {
               👻
             </div>
             <span className="dex-label text-[9px] tracking-widest text-[#9B7EDE]/70 relative z-10">
-              GHOST TYPE · RANKINGS
+              
             </span>
             <h3 className="dex-display text-lg md:text-xl text-[#9B7EDE] mt-3 mb-3 relative z-10">
               Global Leaderboard
             </h3>
             <p className="text-[#8fa0b8] text-sm font-medium relative z-10 max-w-sm">
-              View live server rankings. Compare your power rating, speed, and accuracy with other trainers.
+              View live server rankings. 
             </p>
           </Link>
 
