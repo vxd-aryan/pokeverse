@@ -59,8 +59,7 @@ function describeEvolutionDetail(detail: any): string {
   return parts.join(' · ');
 }
 
-// A node can have multiple alternative evolution_details (e.g. Tyrogue's 3 branches
-// each list one condition) — join alternates with "or"
+// A node can have multiple alternative evolution_details — join alternates with "or"
 function describeEvolutionMethods(details: any[]): string {
   if (!details || details.length === 0) return 'Unknown method';
   const unique = Array.from(new Set(details.map(describeEvolutionDetail).filter(Boolean)));
@@ -114,8 +113,7 @@ export default function PokemonProfilePage() {
         const encData = await encRes.json();
         setEncounters(encData);
 
-        // 4. Fetch Evolution Chain (kept as a real tree so branching evolutions
-        // like Eevee or Tyrogue render correctly instead of a flattened list)
+        // 4. Fetch Evolution Chain
         if (speciesData.evolution_chain?.url) {
           const evoRes = await fetch(speciesData.evolution_chain.url);
           const evoData = await evoRes.json();
@@ -131,8 +129,6 @@ export default function PokemonProfilePage() {
     if (id) fetchCompleteProfile();
   }, [id]);
 
-  // Reset the shiny toggle whenever a different Pokémon is loaded, so it
-  // doesn't stay "on" after navigating from one profile to another.
   useEffect(() => {
     setIsShiny(false);
   }, [id]);
@@ -159,18 +155,15 @@ export default function PokemonProfilePage() {
     );
   }
 
-  // Safe Formatting Helpers
   const normalImage = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemon.id}.png`;
   const shinyImage =
     pokemon.sprites?.other?.['official-artwork']?.front_shiny ||
     `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${pokemon.id}.png`;
   const profileImage = isShiny ? shinyImage : normalImage;
 
-  // Safely find the english flavor text, fallback if none exists
   const flavorEntry = species?.flavor_text_entries?.find((f: any) => f.language.name === 'en');
   const flavorText = flavorEntry ? flavorEntry.flavor_text.replace(/\f/g, ' ') : 'No archival data found for this entity.';
 
-  // Safely find the english genus (category)
   const genusEntry = species?.genera?.find((g: any) => g.language.name === 'en');
   const genusText = genusEntry ? genusEntry.genus : 'Unknown Category';
 
@@ -178,8 +171,6 @@ export default function PokemonProfilePage() {
   const primaryType = pokemon.types?.[0]?.type?.name;
   const primaryColor = TYPE_COLORS[primaryType] || '#EE1515';
 
-  // Recursively renders an evolution node plus all its branches.
-  // Each branch shows the method/level required to reach it, right on the arrow.
   const renderEvoNode = (node: EvoNode, depth = 0) => (
     <div className="flex items-center gap-3" key={node.id}>
       <Link href={`/pokedex/${node.id}`} className="tile-card flex flex-col items-center w-32 flex-shrink-0 cursor-pointer">
@@ -346,7 +337,7 @@ export default function PokemonProfilePage() {
             {activeTab === 'moves' && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-2">
                 {pokemon.moves.map((m: any) => (
-                  <Link href={`/explore/moves/${m.move.name}`} key={m.move.name}>
+                  <Link href={`/explore/moves?move=${m.move.name}`} key={m.move.name}>
                     <div className="tile-card text-center py-3 cursor-pointer">
                       <span className="text-sm font-medium text-[#D3D3DA] capitalize">{m.move.name.replace('-', ' ')}</span>
                     </div>
@@ -382,7 +373,6 @@ export default function PokemonProfilePage() {
               </div>
             )}
 
-            {/* FORMS / VARIETIES TAB */}
             {activeTab === 'forms' && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {species?.varieties?.map((v: any) => {

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default function MovesDatabasePage() {
+function MovesContent() {
+  const searchParams = useSearchParams();
+  const initialMoveParam = searchParams.get('move') || searchParams.get('selected');
+
   const [moves, setMoves] = useState<any[]>([]);
   const [filteredMoves, setFilteredMoves] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [selectedMove, setSelectedMove] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -28,13 +32,6 @@ export default function MovesDatabasePage() {
     fetchMoves();
   }, []);
 
-  // Handle Search Filter
-  useEffect(() => {
-    const lowerQ = searchQuery.toLowerCase();
-    const filtered = moves.filter(m => m.name.includes(lowerQ));
-    setFilteredMoves(filtered);
-  }, [searchQuery, moves]);
-
   // Fetch specific move details
   const handleSelectMove = async (url: string) => {
     setLoadingDetails(true);
@@ -48,6 +45,20 @@ export default function MovesDatabasePage() {
       setLoadingDetails(false);
     }
   };
+
+  // If a move URL param is provided (from Pokedex click), select it automatically
+  useEffect(() => {
+    if (initialMoveParam) {
+      handleSelectMove(`https://pokeapi.co/api/v2/move/${initialMoveParam.toLowerCase()}`);
+    }
+  }, [initialMoveParam]);
+
+  // Handle Search Filter
+  useEffect(() => {
+    const lowerQ = searchQuery.toLowerCase();
+    const filtered = moves.filter(m => m.name.includes(lowerQ));
+    setFilteredMoves(filtered);
+  }, [searchQuery, moves]);
 
   if (loadingInitial) {
     return (
@@ -64,7 +75,7 @@ export default function MovesDatabasePage() {
 
   return (
     <div className="rom-root min-h-screen p-4 md:p-8 pixel-font text-slate-200">
-      
+
       {/* Header */}
       <div className="mb-6 ml-2">
         <h1 className="text-xl md:text-2xl text-white uppercase tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
@@ -76,10 +87,10 @@ export default function MovesDatabasePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto">
-        
+
         {/* Left Side: Searchable List */}
         <div className="col-span-1 rom-panel-dark flex flex-col h-[600px] shadow-[8px_8px_0_rgba(0,0,0,0.5)]">
-          
+
           <div className="p-3 border-b-4 border-slate-700 bg-slate-900 rounded-t-md">
             <input 
               type="text" 
@@ -97,151 +108,125 @@ export default function MovesDatabasePage() {
                 <button
                   key={m.name}
                   onClick={() => handleSelectMove(m.url)}
-                  className={`w-full text-left px-3 py-3 text-[10px] md:text-xs uppercase transition-all flex items-center gap-2 group ${
+                  className={`w-full text-left px-3 py-3 text-[10px] md:text-xs uppercase transition-all flex items-center gap-2 group mb-1 rounded ${
                     isSelected 
-                      ? 'text-white font-bold bg-blue-900/50' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                      ? 'text-white font-bold bg-blue-900/50 border-l-4 border-blue-400' 
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
                   }`}
                 >
-                  <span className={`text-blue-400 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
-                    ▶
-                  </span>
-                  {m.name.replace(/-/g, ' ')}
+                  <span>{m.name.replace(/-/g, ' ')}</span>
                 </button>
               );
             })}
-            {filteredMoves.length === 0 && (
-              <p className="text-slate-500 text-center mt-6 text-[10px] uppercase">No moves found.</p>
-            )}
           </div>
         </div>
 
-        {/* Right Side: Move Details Terminal */}
-        <div className="col-span-1 md:col-span-2 flex flex-col h-[600px]">
+        {/* Right Side: Move Detail Card */}
+        <div className="col-span-1 md:col-span-2 rom-panel-dark h-[600px] p-6 flex flex-col justify-between overflow-y-auto shadow-[8px_8px_0_rgba(0,0,0,0.5)]">
           {loadingDetails ? (
-            <div className="rom-panel-dark h-full flex flex-col items-center justify-center text-blue-400 text-[10px] md:text-xs text-center p-6 animate-pulse shadow-[8px_8px_0_rgba(0,0,0,0.5)]">
-              ▶ DECRYPTING MOVE STATS... PLEASE WAIT.
+            <div className="h-full flex items-center justify-center text-blue-400 animate-pulse text-xs">
+              LOADING MOVE SPECS...
             </div>
           ) : selectedMove ? (
-            <div className="rom-panel-dark flex flex-col h-full shadow-[8px_8px_0_rgba(0,0,0,0.5)] relative overflow-hidden bg-slate-900">
-              
-              {/* Header Box */}
-              <div className="bg-slate-950 text-white p-4 md:p-6 border-b-4 border-slate-700 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+            <div className="space-y-6">
+              {/* Move Header */}
+              <div className="border-b-4 border-slate-700 pb-4 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg md:text-xl uppercase text-blue-300 drop-shadow-[2px_2px_0_rgba(0,0,0,0.8)]">
+                  <h2 className="text-lg md:text-xl text-yellow-400 uppercase tracking-wider">
                     {selectedMove.name.replace(/-/g, ' ')}
                   </h2>
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    <span className="bg-slate-800 border-2 border-slate-500 text-white text-[8px] md:text-[10px] uppercase px-2 py-1 shadow-[2px_2px_0_rgba(0,0,0,0.8)]">
-                      TYPE: {selectedMove.type.name}
-                    </span>
-                    <span className="bg-slate-800 border-2 border-slate-500 text-slate-300 text-[8px] md:text-[10px] uppercase px-2 py-1 shadow-[2px_2px_0_rgba(0,0,0,0.8)]">
-                      CLASS: {selectedMove.damage_class.name}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-left sm:text-right bg-slate-900 p-3 border-2 border-slate-700">
-                  <p className="text-slate-500 text-[8px] md:text-[10px] uppercase mb-2">Base Power</p>
-                  <p className="text-xl md:text-2xl text-white drop-shadow-[2px_2px_0_rgba(59,130,246,0.5)]">
-                    {selectedMove.power || '--'}
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase">
+                    ID: #{selectedMove.id} | Class: {selectedMove.damage_class?.name || 'N/A'}
                   </p>
                 </div>
+                {selectedMove.type && (
+                  <span className="px-3 py-1 bg-slate-900 border-2 border-slate-600 text-xs font-bold uppercase tracking-wider text-blue-300">
+                    {selectedMove.type.name}
+                  </span>
+                )}
               </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-4 p-4 md:p-6 bg-slate-800 flex-shrink-0">
-                <div className="bg-slate-900 p-3 border-2 border-slate-600 text-center shadow-inner">
-                  <p className="text-slate-500 text-[8px] md:text-[10px] uppercase mb-2">Accuracy</p>
-                  <p className="text-sm md:text-base text-white">{selectedMove.accuracy ? `${selectedMove.accuracy}%` : '--'}</p>
+              {/* Combat Specs Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-slate-900 p-3 border-2 border-slate-700 text-center">
+                  <div className="text-[9px] text-slate-400 uppercase">Power</div>
+                  <div className="text-sm text-white font-bold mt-1">
+                    {selectedMove.power !== null ? selectedMove.power : '—'}
+                  </div>
                 </div>
-                <div className="bg-slate-900 p-3 border-2 border-slate-600 text-center shadow-inner">
-                  <p className="text-slate-500 text-[8px] md:text-[10px] uppercase mb-2">Power Points (PP)</p>
-                  <p className="text-sm md:text-base text-white">{selectedMove.pp}</p>
+                <div className="bg-slate-900 p-3 border-2 border-slate-700 text-center">
+                  <div className="text-[9px] text-slate-400 uppercase">Accuracy</div>
+                  <div className="text-sm text-white font-bold mt-1">
+                    {selectedMove.accuracy !== null ? `${selectedMove.accuracy}%` : '—'}
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-3 border-2 border-slate-700 text-center">
+                  <div className="text-[9px] text-slate-400 uppercase">PP</div>
+                  <div className="text-sm text-white font-bold mt-1">
+                    {selectedMove.pp !== null ? selectedMove.pp : '—'}
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-3 border-2 border-slate-700 text-center">
+                  <div className="text-[9px] text-slate-400 uppercase">Priority</div>
+                  <div className="text-sm text-white font-bold mt-1">
+                    {selectedMove.priority}
+                  </div>
                 </div>
               </div>
 
-              {/* Description Box */}
-              <div className="flex-1 p-4 md:p-6 bg-slate-900 border-t-4 border-slate-700 flex flex-col min-h-0">
-                <p className="text-blue-400 text-[10px] uppercase mb-3 drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">▼ Combat Application</p>
-                <div className="flex-1 rom-text-box-dark p-4 text-[10px] md:text-xs leading-[2] text-slate-200 bg-slate-950 border-2 border-slate-600 rounded-md shadow-inner overflow-y-auto rom-scrollbar-dark">
-                  {selectedMove.flavor_text_entries.find((f: any) => f.language.name === 'en')?.flavor_text.replace(/\f/g, ' ') || 'No combat data available in records.'}
-                </div>
+              {/* Effect Description */}
+              <div className="bg-slate-900/80 p-4 border-2 border-slate-700 space-y-2">
+                <h3 className="text-xs text-blue-400 uppercase tracking-wider">Effect Description</h3>
+                <p className="text-[11px] md:text-xs text-slate-300 leading-relaxed font-sans">
+                  {selectedMove.effect_entries?.find((e: any) => e.language.name === 'en')?.effect.replace(/\$effect_chance%/g, `${selectedMove.effect_chance}%`) ||
+                    selectedMove.flavor_text_entries?.find((f: any) => f.language.name === 'en')?.flavor_text ||
+                    "No operational description available."}
+                </p>
               </div>
 
+              {/* Target & Stat Changes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-slate-900 p-3 border-2 border-slate-700">
+                  <div className="text-[9px] text-slate-400 uppercase">Target</div>
+                  <div className="text-xs text-slate-200 mt-1 capitalize">
+                    {selectedMove.target?.name.replace(/-/g, ' ') || 'N/A'}
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-3 border-2 border-slate-700">
+                  <div className="text-[9px] text-slate-400 uppercase">Stat Changes</div>
+                  <div className="text-xs text-slate-200 mt-1">
+                    {selectedMove.stat_changes?.length > 0 
+                      ? selectedMove.stat_changes.map((sc: any) => `${sc.stat.name}: ${sc.change > 0 ? '+' : ''}${sc.change}`).join(', ')
+                      : 'None'}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="rom-panel-dark h-full flex flex-col items-center justify-center text-slate-500 text-[10px] md:text-xs text-center p-6 shadow-[8px_8px_0_rgba(0,0,0,0.5)] bg-slate-900">
-              <span className="text-3xl block mb-6 animate-bounce text-blue-500/50">▲</span>
-              <p className="leading-relaxed">
-                SELECT A MOVE<br/>FROM THE DATABASE<br/><br/>
-                TO VIEW ITS COMBAT STATS.
-              </p>
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-2">
+              <div className="text-xs uppercase">Select a move from the registry</div>
+              <div className="text-[10px] text-slate-600">Details will display here</div>
             </div>
           )}
         </div>
+
       </div>
-
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        
-        /* Dark Theme Background */
-        .rom-root {
-          background-color: #0f172a; /* Slate 900 */
-          background-image: 
-            linear-gradient(45deg, #1e293b 25%, transparent 25%, transparent 75%, #1e293b 75%, #1e293b), 
-            linear-gradient(45deg, #1e293b 25%, transparent 25%, transparent 75%, #1e293b 75%, #1e293b);
-          background-size: 20px 20px;
-          background-position: 0 0, 10px 10px;
-        }
-
-        .pixel-font { 
-          font-family: 'Press Start 2P', monospace; 
-          line-height: 1.4;
-        }
-
-        /* Dark ROM Dialog Box */
-        .rom-panel-dark {
-          background-color: #1e293b;
-          border: 4px solid #475569;
-          border-radius: 8px;
-          box-shadow: inset -2px -2px 0px 0px rgba(0,0,0,0.5), inset 2px 2px 0px 0px rgba(255,255,255,0.1);
-        }
-
-        /* Inner Text Box for descriptions (Dark Mode) */
-        .rom-text-box-dark {
-          position: relative;
-        }
-        .rom-text-box-dark::after {
-          content: '▼';
-          position: sticky;
-          float: right;
-          bottom: 0px;
-          right: 0px;
-          font-size: 8px;
-          color: #60a5fa;
-          animation: blink 1s step-end infinite;
-          margin-top: 10px;
-        }
-
-        /* Blocky Custom Scrollbar (Dark Theme) */
-        .rom-scrollbar-dark::-webkit-scrollbar { width: 12px; }
-        .rom-scrollbar-dark::-webkit-scrollbar-track { 
-          background: #0f172a; 
-          border-left: 2px solid #334155;
-        }
-        .rom-scrollbar-dark::-webkit-scrollbar-thumb { 
-          background: #475569; 
-          border: 2px solid #1e293b;
-        }
-        .rom-scrollbar-dark::-webkit-scrollbar-thumb:hover { 
-          background: #64748b; 
-        }
-
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
-        }
-      `}</style>
     </div>
+  );
+}
+
+export default function MovesDatabasePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[60vh] pixel-font text-white">
+        <div className="rom-panel-dark w-full max-w-md p-8 text-center animate-pulse">
+          <p className="text-sm md:text-base leading-relaxed text-blue-400">
+            LOADING MOVES ARCHIVE...
+          </p>
+        </div>
+      </div>
+    }>
+      <MovesContent />
+    </Suspense>
   );
 }
