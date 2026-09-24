@@ -92,6 +92,11 @@ interface PartyPick {
   moveNames: string[];
 }
 
+// Stages of the pre-battle intro sequence: trainers appear -> both throw a
+// Poké Ball -> the real Pokémon sprites emerge. `null` means no intro is
+// currently playing (either it hasn't started, or it already finished).
+type IntroStage = 'trainers' | 'throw' | 'sendout' | null;
+
 const MAX_PARTY = 3;
 const API_BASE = 'https://pokeverse-backend1.onrender.com';
 
@@ -174,6 +179,11 @@ export default function BattlePlayPage() {
   const [battleBanner, setBattleBanner] = useState<{ text: string; key: number } | null>(null);
   const lastProcessedLogIndexRef = useRef(0);
 
+  // --- Pre-battle intro + mid-battle switch-in animation state ---
+  const [introStage, setIntroStage] = useState<IntroStage>(null);
+  const [mySendOutAnim, setMySendOutAnim] = useState(false);
+  const [theirSendOutAnim, setTheirSendOutAnim] = useState(false);
+
   // --- Refs ---
   const wsRef = useRef<WebSocket | null>(null);
   const phaseRef = useRef<UiPhase>('connecting');
@@ -223,12 +233,42 @@ export default function BattlePlayPage() {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Plays the pre-battle intro: trainers appear, both throw a Poké Ball,
+  // then the real Pokémon sprites emerge. Awaited from inside
+  // animateLogEntry, so it blocks the animation queue exactly like every
+  // other queued effect - no subsequent log (e.g. a same-turn attack) can
+  // play until this finishes, and the move/switch panel stays replaced by
+  // a status message the whole time (see introStage in the render below).
+  const playIntroSequence = async () => {
+    setIntroStage('trainers');
+    await sleep(1000);
+    setIntroStage('throw');
+    await sleep(750);
+    setIntroStage('sendout');
+    await sleep(750);
+    setIntroStage(null);
+  };
+
+  // Plays out ONE log line's visual effect and waits for it to finish
+  // before the queue moves on - this is what creates the "attacker A's
+  // move, effect, and damage fully play out, THEN attacker B's turn
+  // begins" pacing, instead of both attacks' animations firing together.
   const animateLogEntry = async (entry: BattleLog) => {
     const text = entry.text;
     const current = gameStateRef.current;
     if (!current) return;
     const myName = current.active_pokemon.name;
     const opponentName = current.opponent_pokemon.name;
+
+    // Pre-battle intro: fires off the exact "Match started!" / "Rematch
+    // accepted!" log lines the backend already sends, so nothing new had
+    // to be added server-side to trigger this.
+    const matchStartMatch = text.match(/^Match started! (.+) vs (.+)!$/);
+    const rematchAcceptedMatch = text.match(/^Rematch accepted! (.+) vs (.+)!$/);
+    if (matchStartMatch || rematchAcceptedMatch) {
+      await playIntroSequence();
+      return;
+    }
 
     const usedMatch = text.match(/^(.+) used (.+)!$/);
     if (usedMatch) {
@@ -308,9 +348,28 @@ export default function BattlePlayPage() {
       return;
     }
 
-    // Switch-in lines get a short beat so the sprite swap reads clearly.
-    if (text.match(/^(.+) was sent out!$/) || text.match(/was withdrawn!/)) {
-      await sleep(450);
+    // Switch-in lines: play a short "emerging from its Poké Ball" beat on
+    // whichever side just changed, and hold the queue here so the next
+    // queued log entry (e.g. the opponent's attack right after a switch)
+    // doesn't play until the send-out animation has actually finished.
+    // Both "X was sent out!" (forced, post-faint) and "X was withdrawn!
+    // Go, Y!" (voluntary) are covered.
+    const sentOutMatch = text.match(/^(.+) was sent out!$/);
+    const withdrawnMatch = text.match(/^(.+) was withdrawn! Go, (.+)!$/);
+    const incomingName = sentOutMatch ? sentOutMatch[1] : withdrawnMatch ? withdrawnMatch[2] : null;
+
+    if (incomingName) {
+      const side: 'mine' | 'theirs' | null =
+        incomingName === myName ? 'mine' : incomingName === opponentName ? 'theirs' : null;
+
+      if (side === 'mine') setMySendOutAnim(true);
+      if (side === 'theirs') setTheirSendOutAnim(true);
+
+      await sleep(650);
+
+      if (side === 'mine') setMySendOutAnim(false);
+      if (side === 'theirs') setTheirSendOutAnim(false);
+      return;
     }
   };
 
@@ -478,6 +537,11 @@ export default function BattlePlayPage() {
   // --- Battle actions ---
   const handleMove = (moveId: string) => {
     if (gameState?.must_switch) return;
+    // Refuse actions while the intro or a switch-in animation is playing,
+    // even if a stray click event is already queued right as the state
+    // flips - the visible panel already hides the move grid during this
+    // window, this is just a defensive backstop.
+    if (introStage || mySendOutAnim || theirSendOutAnim) return;
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isWaitingForTurn) {
       setIsWaitingForTurn(true);
       setShowSwitchPanel(false);
@@ -486,6 +550,7 @@ export default function BattlePlayPage() {
   };
 
   const handleSwitch = (index: number) => {
+    if (introStage || mySendOutAnim || theirSendOutAnim) return;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const forced = Boolean(gameState?.must_switch);
     if (!forced && isWaitingForTurn) return;
@@ -882,6 +947,7 @@ export default function BattlePlayPage() {
   const myTeam = gameState?.my_team || [];
   const opponentTeam = gameState?.opponent_team || [];
   const switchableCount = myTeam.filter((m) => !m.fainted && !m.is_active).length;
+  const switchAnimating = mySendOutAnim || theirSendOutAnim;
 
   return (
     <>
@@ -930,6 +996,28 @@ export default function BattlePlayPage() {
           100% { transform: translateY(0) scale(1); opacity: 1; }
         }
         .animate-send-out { animation: sendOut 0.4s ease-out; }
+
+        /* --- Pre-battle Poké Ball throw arcs --- */
+        @keyframes pokeballArcMine {
+          0%   { left: 12%; bottom: 18%; transform: scale(0.7) rotate(0deg); opacity: 1; }
+          55%  { left: 42%; bottom: 52%; transform: scale(1.1) rotate(280deg); opacity: 1; }
+          100% { left: 46%; bottom: 46%; transform: scale(0.85) rotate(360deg); opacity: 0; }
+        }
+        @keyframes pokeballArcTheirs {
+          0%   { right: 14%; top: 20%; transform: scale(0.7) rotate(0deg); opacity: 1; }
+          55%  { right: 42%; top: 52%; transform: scale(1.1) rotate(-280deg); opacity: 1; }
+          100% { right: 46%; top: 46%; transform: scale(0.85) rotate(-360deg); opacity: 0; }
+        }
+        .pokeball-throw {
+          position: absolute;
+          width: 24px;
+          height: 24px;
+          border-radius: 9999px;
+          background: linear-gradient(180deg, #ef4444 0%, #ef4444 46%, #1f2937 46%, #1f2937 54%, #f8fafc 54%, #f8fafc 100%);
+          box-shadow: 0 0 0 2px #1f2937, 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .pokeball-throw--mine { animation: pokeballArcMine 0.7s ease-out forwards; }
+        .pokeball-throw--theirs { animation: pokeballArcTheirs 0.7s ease-out forwards; }
       `}</style>
 
       {/* --- Type Chart overlay --- */}
@@ -969,6 +1057,40 @@ export default function BattlePlayPage() {
                   <div className="relative flex-grow bg-gradient-to-b from-sky-300 to-sky-100 overflow-hidden">
                     <div className="absolute top-10 left-10 w-32 h-12 bg-white/40 rounded-full blur-md"></div>
                     <div className="absolute top-16 right-20 w-48 h-16 bg-white/40 rounded-full blur-md"></div>
+
+                    {/* Pre-battle intro overlay: trainers + Poké Ball throw.
+                        Sits above everything else in the scene and hides
+                        the Pokémon/HP boxes until they're actually "sent
+                        out" (see introStage === 'sendout' handling below,
+                        where the real sprites use the send-out animation
+                        instead of this overlay). */}
+                    {(introStage === 'trainers' || introStage === 'throw') && (
+                      <div className="absolute inset-0 z-30 bg-gradient-to-b from-sky-300 to-sky-100 flex items-center justify-center">
+                        <img
+                          src="https://play.pokemonshowdown.com/sprites/trainers/blue.png"
+                          alt="Opposing trainer"
+                          className="absolute top-[12%] right-[10%] w-24 h-24 md:w-28 md:h-28 object-contain drop-shadow-2xl animate-send-out"
+                          onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
+                        />
+                        <img
+                          src="https://play.pokemonshowdown.com/sprites/trainers/red.png"
+                          alt="Your trainer"
+                          className="absolute bottom-[10%] left-[8%] w-28 h-28 md:w-32 md:h-32 object-contain drop-shadow-2xl scale-x-[-1] animate-send-out"
+                          onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
+                        />
+
+                        {introStage === 'throw' && (
+                          <>
+                            <span className="pokeball-throw pokeball-throw--theirs" aria-hidden="true" />
+                            <span className="pokeball-throw pokeball-throw--mine" aria-hidden="true" />
+                          </>
+                        )}
+
+                        <span className="text-white font-black text-sm md:text-base uppercase tracking-widest drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] animate-pulse">
+                          {introStage === 'trainers' ? 'A wild battle begins!' : 'Go!'}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Party indicator: opponent (top-right), mine (bottom-left) */}
                     <div className="absolute top-3 right-4 flex gap-1.5 z-20">
@@ -1011,6 +1133,8 @@ export default function BattlePlayPage() {
                         className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-40 h-40 object-contain drop-shadow-2xl ${
                           phase === 'opponent_left' || faintedSide === 'theirs'
                             ? faintedSide === 'theirs' ? 'animate-faint-drop' : 'grayscale opacity-60'
+                            : introStage === 'sendout' || theirSendOutAnim
+                            ? 'animate-send-out'
                             : attackingSide === 'theirs'
                             ? 'animate-attack-lunge-right'
                             : hitSide === 'theirs'
@@ -1061,6 +1185,8 @@ export default function BattlePlayPage() {
                         className={`absolute bottom-[20%] left-1/2 -translate-x-1/2 w-56 h-56 object-contain drop-shadow-2xl ${
                           faintedSide === 'mine'
                             ? 'animate-faint-drop'
+                            : introStage === 'sendout' || mySendOutAnim
+                            ? 'animate-send-out'
                             : attackingSide === 'mine'
                             ? 'animate-attack-lunge-left'
                             : hitSide === 'mine'
@@ -1198,6 +1324,16 @@ export default function BattlePlayPage() {
                               RUN AWAY
                             </button>
                           </div>
+                        </div>
+                      ) : introStage || switchAnimating ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center font-sans">
+                          <span className="text-sm font-black uppercase tracking-wider text-blue-900 animate-pulse">
+                            {introStage === 'trainers'
+                              ? 'Trainers ready...'
+                              : introStage === 'throw'
+                              ? 'Throwing Poké Balls...'
+                              : 'Sending out Pokémon...'}
+                          </span>
                         </div>
                       ) : mustSwitch || showSwitchPanel ? (
                         <div className="flex flex-col h-full">
