@@ -328,6 +328,15 @@ export default function RootLayout({
                       <span>⚔️</span>
                       Battle
                     </Link>
+
+                    {/* JOURNEY LINK */}
+                    <Link
+                      href="/journey"
+                      className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-black uppercase tracking-widest text-sm transition-colors"
+                    >
+                      <span>🗺️</span>
+                      Journey
+                    </Link>
                   </div>
                 </div>
 
@@ -391,6 +400,15 @@ export default function RootLayout({
                     >
                       <span>⚔️</span>
                       Battle
+                    </Link>
+
+                    {/* JOURNEY LINK - MOBILE */}
+                    <Link
+                      href="/journey"
+                      className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-black uppercase tracking-widest text-sm transition-colors"
+                    >
+                      <span>🗺️</span>
+                      Journey
                     </Link>
                 </div>
 
