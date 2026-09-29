@@ -4,12 +4,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/store/userStore';
-import { REGION_ORDER, IMPLEMENTED_REGIONS, isRegionUnlocked, getRegionState } from './lib/journeyStorage';
+import {
+  REGION_ORDER,
+  IMPLEMENTED_REGIONS,
+  isRegionUnlocked,
+  getRegionState,
+} from './lib/journeyStorage';
 import { KANTO_GYMS } from './data/kanto';
 
 const REGION_LABELS: Record<string, string> = {
   kanto: 'Kanto', johto: 'Johto', hoenn: 'Hoenn', sinnoh: 'Sinnoh',
   unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea',
+};
+
+/** Gym count per region, for the hub cards. Only Kanto is real so far. */
+const REGION_GYM_COUNT: Record<string, number> = {
+  kanto: KANTO_GYMS.length,
 };
 
 export default function JourneyHubPage() {
@@ -28,59 +38,83 @@ export default function JourneyHubPage() {
   if (!mounted || !user) return null;
 
   return (
-    <div className="journey-root min-h-screen p-4 md:p-10 text-white">
+    <div className="journey-root min-h-screen p-4 md:p-10 text-slate-200">
       <div className="max-w-4xl mx-auto">
-        <h1 className="pixel-font text-xl md:text-2xl mb-2 text-yellow-300 drop-shadow-[2px_2px_0_rgba(0,0,0,0.8)]">
-          Trainer Journey
-        </h1>
-        <p className="text-sm text-slate-400 mb-8">
-          Travel region by region, earn every gym badge, and grow your team from scratch each time.
+        <h1 className="pixel-font text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
+        <p className="text-[11px] text-slate-400 mb-8 max-w-lg">
+          Travel region by region, earn every gym badge, and raise a fresh team from scratch
+          each time. Kanto follows FireRed / LeafGreen canon.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {REGION_ORDER.map((regionId) => {
-            const isImplemented = IMPLEMENTED_REGIONS.includes(regionId);
-            const unlocked = isImplemented && isRegionUnlocked(user.username, regionId);
-            const regionState = isImplemented ? getRegionState(user.username, regionId) : null;
-            const complete = regionState?.regionComplete;
-            const gymCount = regionId === 'kanto' ? KANTO_GYMS.length : 0;
-            const gymsDone = regionState?.completedGyms.length || 0;
+            const implemented = IMPLEMENTED_REGIONS.includes(regionId);
+            const unlocked = implemented && isRegionUnlocked(user.username, regionId);
+            const state = implemented ? getRegionState(user.username, regionId) : null;
+            const complete = state?.regionComplete;
+            const gymCount = REGION_GYM_COUNT[regionId] ?? 8;
+            const gymsDone = state?.completedGyms.length ?? 0;
+            const hasTeam = !!state?.team && state.team.length === 6;
 
-            const content = (
+            const href = !unlocked
+              ? '#'
+              : complete
+              ? `/journey/${regionId}/complete`
+              : hasTeam
+              ? `/journey/${regionId}/map`
+              : `/journey/${regionId}/team`;
+
+            const card = (
               <div
-                className={`journey-region-card p-4 rounded-xl border-2 h-32 flex flex-col justify-between ${
+                className={`region-card p-3 h-32 flex flex-col justify-between border-2 ${
                   !unlocked
-                    ? 'border-slate-700 bg-slate-900/50 opacity-60'
+                    ? 'border-slate-800 bg-slate-900/50 opacity-60'
                     : complete
                     ? 'border-green-500 bg-green-900/20'
-                    : 'border-yellow-500 bg-slate-800'
+                    : 'border-yellow-500 bg-slate-900'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-black uppercase tracking-wide text-sm">
+                <div className="flex items-start justify-between">
+                  <span className="font-black uppercase tracking-wide text-xs">
                     {REGION_LABELS[regionId]}
                   </span>
-                  {!unlocked && <span className="text-lg">🔒</span>}
-                  {complete && <span className="text-lg">✅</span>}
+                  <span className="text-base leading-none">
+                    {!unlocked ? '🔒' : complete ? '🏆' : '🗺️'}
+                  </span>
                 </div>
-                {isImplemented ? (
-                  <div className="text-xs text-slate-400">
-                    {complete ? 'Region complete!' : unlocked ? `Gyms: ${gymsDone}/${gymCount}` : 'Locked'}
+
+                {implemented ? (
+                  <div>
+                    {unlocked && (
+                      <div className="h-1.5 bg-slate-950 border border-slate-700 overflow-hidden mb-1.5">
+                        <div
+                          className={`h-full ${complete ? 'bg-green-500' : 'bg-yellow-400'}`}
+                          style={{ width: `${(gymsDone / gymCount) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wide">
+                      {complete
+                        ? `All ${gymCount} badges earned`
+                        : !unlocked
+                        ? 'Locked'
+                        : !hasTeam
+                        ? 'Choose your team'
+                        : `Badges ${gymsDone}/${gymCount}`}
+                    </p>
                   </div>
                 ) : (
-                  <div className="text-xs text-slate-500 italic">Coming soon</div>
+                  <p className="text-[9px] text-slate-600 italic uppercase tracking-wide">
+                    Coming soon
+                  </p>
                 )}
               </div>
             );
 
             return unlocked ? (
-              <Link key={regionId} href={`/journey/${regionId}/map`}>
-                {content}
-              </Link>
+              <Link key={regionId} href={href}>{card}</Link>
             ) : (
-              <div key={regionId} className="cursor-not-allowed">
-                {content}
-              </div>
+              <div key={regionId} className="cursor-not-allowed">{card}</div>
             );
           })}
         </div>
@@ -88,17 +122,20 @@ export default function JourneyHubPage() {
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        .pixel-font { font-family: 'Press Start 2P', monospace; }
+        .pixel-font { font-family: 'Press Start 2P', monospace; line-height: 1.7; }
         .journey-root {
-          background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
+          background: #0b1120;
+          background-image:
+            linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+          background-size: 16px 16px;
+          font-family: ui-monospace, monospace;
         }
-        .journey-region-card {
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        .region-card {
+          box-shadow: 0 4px 0 rgba(0,0,0,0.4);
+          transition: transform 0.12s ease;
         }
-        a:hover .journey-region-card {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 20px -8px rgba(250, 204, 21, 0.3);
-        }
+        a:hover .region-card { transform: translateY(-3px); }
       `}</style>
     </div>
   );
