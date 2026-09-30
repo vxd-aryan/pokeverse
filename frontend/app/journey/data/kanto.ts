@@ -275,6 +275,126 @@ export const KANTO_BASE_STAGE_IDS = [
   138, 140, 142, 143, 147,
 ];
 
+/**
+ * Name and types for every eligible starter, held locally so the
+ * selection grid draws instantly instead of firing 60+ requests at
+ * PokeAPI. Full stats are fetched only for the six a player picks.
+ */
+export const KANTO_STARTER_ROSTER: { id: number; name: string; types: string[] }[] = [
+  { id: 1,   name: 'Bulbasaur',  types: ['Grass', 'Poison'] },
+  { id: 4,   name: 'Charmander', types: ['Fire'] },
+  { id: 7,   name: 'Squirtle',   types: ['Water'] },
+  { id: 10,  name: 'Caterpie',   types: ['Bug'] },
+  { id: 13,  name: 'Weedle',     types: ['Bug', 'Poison'] },
+  { id: 16,  name: 'Pidgey',     types: ['Normal', 'Flying'] },
+  { id: 19,  name: 'Rattata',    types: ['Normal'] },
+  { id: 21,  name: 'Spearow',    types: ['Normal', 'Flying'] },
+  { id: 23,  name: 'Ekans',      types: ['Poison'] },
+  { id: 25,  name: 'Pikachu',    types: ['Electric'] },
+  { id: 27,  name: 'Sandshrew',  types: ['Ground'] },
+  { id: 29,  name: 'Nidoran♀',   types: ['Poison'] },
+  { id: 32,  name: 'Nidoran♂',   types: ['Poison'] },
+  { id: 35,  name: 'Clefairy',   types: ['Fairy'] },
+  { id: 37,  name: 'Vulpix',     types: ['Fire'] },
+  { id: 39,  name: 'Jigglypuff', types: ['Normal', 'Fairy'] },
+  { id: 41,  name: 'Zubat',      types: ['Poison', 'Flying'] },
+  { id: 43,  name: 'Oddish',     types: ['Grass', 'Poison'] },
+  { id: 46,  name: 'Paras',      types: ['Bug', 'Grass'] },
+  { id: 48,  name: 'Venonat',    types: ['Bug', 'Poison'] },
+  { id: 50,  name: 'Diglett',    types: ['Ground'] },
+  { id: 52,  name: 'Meowth',     types: ['Normal'] },
+  { id: 54,  name: 'Psyduck',    types: ['Water'] },
+  { id: 56,  name: 'Mankey',     types: ['Fighting'] },
+  { id: 58,  name: 'Growlithe',  types: ['Fire'] },
+  { id: 60,  name: 'Poliwag',    types: ['Water'] },
+  { id: 63,  name: 'Abra',       types: ['Psychic'] },
+  { id: 66,  name: 'Machop',     types: ['Fighting'] },
+  { id: 69,  name: 'Bellsprout', types: ['Grass', 'Poison'] },
+  { id: 72,  name: 'Tentacool',  types: ['Water', 'Poison'] },
+  { id: 74,  name: 'Geodude',    types: ['Rock', 'Ground'] },
+  { id: 77,  name: 'Ponyta',     types: ['Fire'] },
+  { id: 79,  name: 'Slowpoke',   types: ['Water', 'Psychic'] },
+  { id: 81,  name: 'Magnemite',  types: ['Electric', 'Steel'] },
+  { id: 83,  name: "Farfetch'd", types: ['Normal', 'Flying'] },
+  { id: 84,  name: 'Doduo',      types: ['Normal', 'Flying'] },
+  { id: 86,  name: 'Seel',       types: ['Water'] },
+  { id: 88,  name: 'Grimer',     types: ['Poison'] },
+  { id: 90,  name: 'Shellder',   types: ['Water'] },
+  { id: 92,  name: 'Gastly',     types: ['Ghost', 'Poison'] },
+  { id: 96,  name: 'Drowzee',    types: ['Psychic'] },
+  { id: 98,  name: 'Krabby',     types: ['Water'] },
+  { id: 100, name: 'Voltorb',    types: ['Electric'] },
+  { id: 102, name: 'Exeggcute',  types: ['Grass', 'Psychic'] },
+  { id: 104, name: 'Cubone',     types: ['Ground'] },
+  { id: 108, name: 'Lickitung',  types: ['Normal'] },
+  { id: 109, name: 'Koffing',    types: ['Poison'] },
+  { id: 111, name: 'Rhyhorn',    types: ['Ground', 'Rock'] },
+  { id: 114, name: 'Tangela',    types: ['Grass'] },
+  { id: 116, name: 'Horsea',     types: ['Water'] },
+  { id: 118, name: 'Goldeen',    types: ['Water'] },
+  { id: 120, name: 'Staryu',     types: ['Water'] },
+  { id: 127, name: 'Pinsir',     types: ['Bug'] },
+  { id: 129, name: 'Magikarp',   types: ['Water'] },
+  { id: 131, name: 'Lapras',     types: ['Water', 'Ice'] },
+  { id: 133, name: 'Eevee',      types: ['Normal'] },
+  { id: 137, name: 'Porygon',    types: ['Normal'] },
+  { id: 138, name: 'Omanyte',    types: ['Rock', 'Water'] },
+  { id: 140, name: 'Kabuto',     types: ['Rock', 'Water'] },
+  { id: 142, name: 'Aerodactyl', types: ['Rock', 'Flying'] },
+  { id: 143, name: 'Snorlax',    types: ['Normal'] },
+  { id: 147, name: 'Dratini',    types: ['Dragon'] },
+];
+
+/**
+ * One reliable attacking move per type, plus a Normal fallback.
+ * Journey builds each Pokémon's four-move set from its own types
+ * rather than fetching learnsets, which keeps team confirmation to
+ * six requests instead of several dozen. Balancing, not canon —
+ * tune freely.
+ */
+export const TYPE_SIGNATURE_MOVES: Record<string, JourneyMove> = {
+  Normal:   { move_key: 'body-slam',     name: 'Body Slam',     type: 'Normal',   power: 85, damage_class: 'physical' },
+  Fire:     { move_key: 'flamethrower',  name: 'Flamethrower',  type: 'Fire',     power: 90, damage_class: 'special'  },
+  Water:    { move_key: 'surf',          name: 'Surf',          type: 'Water',    power: 90, damage_class: 'special'  },
+  Electric: { move_key: 'thunderbolt',   name: 'Thunderbolt',   type: 'Electric', power: 90, damage_class: 'special'  },
+  Grass:    { move_key: 'razor-leaf',    name: 'Razor Leaf',    type: 'Grass',    power: 55, damage_class: 'physical' },
+  Ice:      { move_key: 'ice-beam',      name: 'Ice Beam',      type: 'Ice',      power: 90, damage_class: 'special'  },
+  Fighting: { move_key: 'brick-break',   name: 'Brick Break',   type: 'Fighting', power: 75, damage_class: 'physical' },
+  Poison:   { move_key: 'sludge-bomb',   name: 'Sludge Bomb',   type: 'Poison',   power: 90, damage_class: 'special'  },
+  Ground:   { move_key: 'earthquake',    name: 'Earthquake',    type: 'Ground',   power: 100, damage_class: 'physical' },
+  Flying:   { move_key: 'wing-attack',   name: 'Wing Attack',   type: 'Flying',   power: 60, damage_class: 'physical' },
+  Psychic:  { move_key: 'psychic',       name: 'Psychic',       type: 'Psychic',  power: 90, damage_class: 'special'  },
+  Bug:      { move_key: 'bug-bite',      name: 'Bug Bite',      type: 'Bug',      power: 60, damage_class: 'physical' },
+  Rock:     { move_key: 'rock-slide',    name: 'Rock Slide',    type: 'Rock',     power: 75, damage_class: 'physical' },
+  Ghost:    { move_key: 'shadow-ball',   name: 'Shadow Ball',   type: 'Ghost',    power: 80, damage_class: 'special'  },
+  Dragon:   { move_key: 'dragon-claw',   name: 'Dragon Claw',   type: 'Dragon',   power: 80, damage_class: 'physical' },
+  Dark:     { move_key: 'crunch',        name: 'Crunch',        type: 'Dark',     power: 80, damage_class: 'physical' },
+  Steel:    { move_key: 'iron-head',     name: 'Iron Head',     type: 'Steel',    power: 80, damage_class: 'physical' },
+  Fairy:    { move_key: 'dazzling-gleam', name: 'Dazzling Gleam', type: 'Fairy',  power: 80, damage_class: 'special'  },
+};
+
+export const FILLER_MOVES: JourneyMove[] = [
+  { move_key: 'tackle',     name: 'Tackle',     type: 'Normal', power: 40, damage_class: 'physical' },
+  { move_key: 'quick-attack', name: 'Quick Attack', type: 'Normal', power: 40, damage_class: 'physical' },
+];
+
+/** Four moves for a Pokémon, built from its own types. */
+export function buildMoveset(types: string[]): JourneyMove[] {
+  const moves: JourneyMove[] = [];
+  for (const t of types) {
+    const sig = TYPE_SIGNATURE_MOVES[t];
+    if (sig && !moves.some((m) => m.move_key === sig.move_key)) moves.push(sig);
+  }
+  if (!moves.some((m) => m.type === 'Normal')) {
+    moves.push(TYPE_SIGNATURE_MOVES.Normal);
+  }
+  for (const f of FILLER_MOVES) {
+    if (moves.length >= 4) break;
+    if (!moves.some((m) => m.move_key === f.move_key)) moves.push(f);
+  }
+  return moves.slice(0, 4);
+}
+
 // ============================================================
 // EVOLUTION
 // ============================================================
