@@ -73,6 +73,8 @@ export interface GymLeader {
   locationId: string;
   type: string;
   badgeName: string;
+  /** Pokémon Showdown trainer-sprite key. See TRAINER_SPRITE_BASE. */
+  spriteKey: string;
   /** Short boss-intro line shown before the battle starts. */
   quote: string;
   /** Line shown on defeat. */
@@ -89,6 +91,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'pewter',
     type: 'Rock',
     badgeName: 'Boulder Badge',
+    spriteKey: 'brock',
     quote: "I believe in rock-hard defense and determination. Show me what you've got!",
     defeatQuote: 'I took you for granted, and so I lost. Take the Boulder Badge.',
     team: [
@@ -104,6 +107,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'cerulean',
     type: 'Water',
     badgeName: 'Cascade Badge',
+    spriteKey: 'misty',
     quote: 'My policy is an all-out offensive with Water-type Pokémon!',
     defeatQuote: "Wow! You're too much! All right, take the Cascade Badge.",
     team: [
@@ -119,6 +123,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'vermilion',
     type: 'Electric',
     badgeName: 'Thunder Badge',
+    spriteKey: 'ltsurge',
     quote: "Electric Pokémon saved me during the war! I'll shock you into surrender!",
     defeatQuote: 'Whoa! You have great Pokémon! Take the Thunder Badge!',
     team: [
@@ -135,6 +140,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'celadon',
     type: 'Grass',
     badgeName: 'Rainbow Badge',
+    spriteKey: 'erika',
     quote: 'I teach the art of flower arranging. My Pokémon are of the Grass type.',
     defeatQuote: 'Oh! I concede defeat. You are remarkably strong. The Rainbow Badge is yours.',
     team: [
@@ -151,6 +157,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'fuchsia',
     type: 'Poison',
     badgeName: 'Soul Badge',
+    spriteKey: 'koga',
     quote: 'A ninja should be able to track his prey through darkness! Fear the poison!',
     defeatQuote: 'Humph! You have proven your worth! Here is the Soul Badge!',
     team: [
@@ -168,6 +175,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'saffron',
     type: 'Psychic',
     badgeName: 'Marsh Badge',
+    spriteKey: 'sabrina',
     quote: 'I had a vision of your arrival. My psychic power is unbeatable.',
     defeatQuote: "Your power... it's amazing. You deserve the Marsh Badge.",
     team: [
@@ -185,6 +193,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'cinnabar',
     type: 'Fire',
     badgeName: 'Volcano Badge',
+    spriteKey: 'blaine',
     quote: 'Hah! I am Blaine! My fiery Pokémon will incinerate all challengers!',
     defeatQuote: "I've burned out! You've earned the Volcano Badge!",
     team: [
@@ -202,6 +211,7 @@ export const KANTO_GYMS: GymLeader[] = [
     locationId: 'viridian',
     type: 'Ground',
     badgeName: 'Earth Badge',
+    spriteKey: 'giovanni',
     quote: 'So! I must show you that my Pokémon skills are superior. This will be your final battle.',
     defeatQuote: 'Ha! That was a truly intense fight! You have won. Take the Earth Badge.',
     team: [

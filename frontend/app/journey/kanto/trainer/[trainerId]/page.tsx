@@ -11,10 +11,11 @@ import {
   getEvolutionStage,
   type JourneyPokemon,
 } from '../../../data/kanto';
-import { getTrainerById, trainerLevelCap } from '../../../data/kanto-trainers';
+import { getTrainerById, trainerLevelCap, trainerSpriteKey } from '../../../data/kanto-trainers';
 import { KANTO_NODE_BY_ID } from '../../../data/kanto-map';
 import { fetchJourneyPokemon, relevelJourneyPokemon } from '../../../lib/pokemonFetch';
 import { resolveJourneyTurn } from '../../../lib/battleEngine';
+import { TrainerSprite, SendOutScene } from '../../../components/TrainerSprite';
 import {
   getRegionState,
   updateTeam,
@@ -24,7 +25,7 @@ import {
   isTrainerDefeated,
 } from '../../../lib/journeyStorage';
 
-type Phase = 'loading' | 'intro' | 'battling' | 'victory' | 'defeat' | 'fled';
+type Phase = 'loading' | 'intro' | 'sendout' | 'battling' | 'victory' | 'defeat' | 'fled';
 type Menu = 'root' | 'fight' | 'switch';
 
 const SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
@@ -314,6 +315,15 @@ export default function TrainerBattlePage() {
           <p className="text-[9px] uppercase tracking-[0.3em] text-slate-500 mb-2">
             {trainer.trainerClass}
           </p>
+
+          <div className="trainer-portrait mx-auto mb-3">
+            <TrainerSprite
+              spriteKey={trainerSpriteKey(trainer)}
+              alt={`${trainer.trainerClass} ${trainer.name}`}
+              className="w-20 h-20 md:w-24 md:h-24 object-contain"
+            />
+          </div>
+
           <p className="pixel-font text-sm text-yellow-300 mb-5 name-pop">{trainer.name}</p>
 
           <div className="quote-box mx-auto max-w-md px-4 py-3 mb-6">
@@ -335,8 +345,32 @@ export default function TrainerBattlePage() {
           </div>
 
           <div className="flex gap-2 justify-center flex-wrap">
-            <button onClick={() => setPhase('battling')} className="btn-yellow">Battle</button>
+            <button onClick={() => setPhase('sendout')} className="btn-yellow">Battle</button>
             <Link href="/journey/kanto/map" className="btn-grey">Walk Away</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Send-out */}
+      {phase === 'sendout' && playerMon && opponentMon && (
+        <div className="panel overflow-hidden fade-up">
+          <SendOutScene
+            opponentSpriteKey={trainerSpriteKey(trainer)}
+            opponentName={trainer.name}
+            playerName={user.username}
+            onDone={() => {
+              setLogs((prev) => [
+                ...prev,
+                `${trainer.name} sent out ${opponentMon.name}!`,
+                `Go, ${playerMon.name}!`,
+              ]);
+              setPhase('battling');
+            }}
+          />
+          <div className="bg-stone-900 p-2 md:p-3">
+            <div className="message-box p-3 text-[10px] md:text-[11px]">
+              <p className="leading-snug">▶ {trainer.name} is about to send out a Pokémon!</p>
+            </div>
           </div>
         </div>
       )}
@@ -444,6 +478,14 @@ export default function TrainerBattlePage() {
       {phase === 'victory' && (
         <div className="panel p-6 text-center fade-up border-green-600">
           <p className="pixel-font text-[11px] text-green-400 mb-3">TRAINER DEFEATED</p>
+
+          <div className="trainer-portrait trainer-beaten mx-auto mb-3">
+            <TrainerSprite
+              spriteKey={trainerSpriteKey(trainer)}
+              alt={trainer.name}
+              className="w-16 h-16 object-contain"
+            />
+          </div>
           <p className="text-[11px] text-slate-300 italic mb-5 max-w-md mx-auto">“{trainer.defeatQuote}”</p>
 
           <p className="text-[9px] uppercase tracking-widest text-slate-500 mb-2">Party Gained a Level</p>
@@ -583,6 +625,22 @@ function Shell({ children }: { children: React.ReactNode }) {
         }
 
         .quote-box { background: #020617; border: 2px solid #334155; }
+
+        .trainer-sprite { image-rendering: pixelated; display: block; }
+        .trainer-portrait {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px;
+          background: radial-gradient(circle at 50% 35%, rgba(148,163,184,0.16), transparent 70%), #020617;
+          border: 3px solid #475569;
+          animation: portraitIn 440ms var(--ease-pop) both;
+        }
+        @keyframes portraitIn {
+          from { opacity: 0; transform: scale(0.82) translateY(8px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .trainer-beaten { border-color: #16a34a; filter: grayscale(0.55); }
         .roster-chip { background: #020617; border: 2px solid #334155; }
 
         .battlefield {

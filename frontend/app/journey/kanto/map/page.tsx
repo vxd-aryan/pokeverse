@@ -28,7 +28,8 @@ import {
   type JourneyRegionState,
   type GymUiState,
 } from '../../lib/journeyStorage';
-import { trainersAt, KANTO_TRAINERS } from '../../data/kanto-trainers';
+import { trainersAt, KANTO_TRAINERS, trainerSpriteKey } from '../../data/kanto-trainers';
+import { TrainerSprite } from '../../components/TrainerSprite';
 
 const GYM_LOCATION_IDS = KANTO_GYMS.map((g) => g.locationId);
 
@@ -429,8 +430,13 @@ export default function KantoMapPage() {
                             const done = isTrainerDefeated(region, t.id);
                             const top = Math.max(...t.team.map((m) => m.level));
                             const row = (
-                              <div className={`trainer-row flex items-center justify-between gap-2 px-2 py-1.5 ${done ? 'trainer-done' : ''}`}>
-                                <div className="min-w-0">
+                              <div className={`trainer-row flex items-center gap-2 px-2 py-1.5 ${done ? 'trainer-done' : ''}`}>
+                                <TrainerSprite
+                                  spriteKey={trainerSpriteKey(t)}
+                                  alt={t.name}
+                                  className="w-9 h-9 object-contain shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
                                   <p className="text-[8px] uppercase tracking-wider text-slate-500">
                                     {t.trainerClass}
                                   </p>
@@ -779,6 +785,7 @@ export default function KantoMapPage() {
         }
         a:hover .trainer-row { transform: translateX(3px); border-color: #facc15; background: #111c33; }
         .trainer-done { opacity: 0.55; }
+        .trainer-sprite { image-rendering: pixelated; display: block; }
 
         .badge-earned {
           box-shadow: 0 0 10px -2px rgba(250,204,21,0.6);

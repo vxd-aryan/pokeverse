@@ -15,6 +15,7 @@ import {
 } from '../../../data/kanto';
 import { fetchJourneyPokemon, relevelJourneyPokemon } from '../../../lib/pokemonFetch';
 import { resolveJourneyTurn } from '../../../lib/battleEngine';
+import { TrainerSprite, SendOutScene } from '../../../components/TrainerSprite';
 import {
   getRegionState,
   markGymComplete,
@@ -25,7 +26,7 @@ import {
   isGymAvailable,
 } from '../../../lib/journeyStorage';
 
-type Phase = 'loading' | 'intro' | 'battling' | 'victory' | 'defeat';
+type Phase = 'loading' | 'intro' | 'sendout' | 'battling' | 'victory' | 'defeat';
 type Menu = 'root' | 'fight' | 'switch';
 
 const SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
@@ -286,6 +287,16 @@ export default function KantoGymBattlePage() {
       {phase === 'intro' && (
         <div className="panel boss-intro p-6 md:p-8 text-center">
           <p className="text-[9px] uppercase tracking-[0.3em] text-slate-500 mb-2">Gym Leader</p>
+
+          {/* The leader themself, framed like a boss card */}
+          <div className="leader-portrait mx-auto mb-3">
+            <TrainerSprite
+              spriteKey={gym.spriteKey}
+              alt={gym.name}
+              className="w-24 h-24 md:w-28 md:h-28 object-contain"
+            />
+          </div>
+
           <p className="pixel-font text-base md:text-xl text-yellow-300 mb-1 boss-name">{gym.name}</p>
           <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-5">
             {gym.type}-type Specialist
@@ -316,9 +327,33 @@ export default function KantoGymBattlePage() {
             Your party enters at Lv{playerLevelBeforeGym(gym.order)} · Running is not an option in a gym battle.
           </p>
 
-          <button onClick={() => setPhase('battling')} className="btn-yellow">
+          <button onClick={() => setPhase('sendout')} className="btn-yellow">
             Begin Battle
           </button>
+        </div>
+      )}
+
+      {/* ---------- SEND-OUT ---------- */}
+      {phase === 'sendout' && playerMon && opponentMon && (
+        <div className="panel overflow-hidden">
+          <SendOutScene
+            opponentSpriteKey={gym.spriteKey}
+            opponentName={gym.name}
+            playerName={user.username}
+            onDone={() => {
+              setLogs((prev) => [
+                ...prev,
+                `${gym.name} sent out ${opponentMon.name}!`,
+                `Go, ${playerMon.name}!`,
+              ]);
+              setPhase('battling');
+            }}
+          />
+          <div className="bg-stone-900 p-2 md:p-3">
+            <div className="message-box p-3 text-[10px] md:text-[11px]">
+              <p className="leading-snug">▶ {gym.name} is about to send out a Pokémon!</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -442,6 +477,15 @@ export default function KantoGymBattlePage() {
       {phase === 'victory' && (
         <div className="panel p-6 md:p-8 text-center victory-panel">
           <p className="pixel-font text-xs md:text-sm text-green-400 mb-3">GYM LEADER DEFEATED</p>
+
+          <div className="leader-portrait leader-beaten mx-auto mb-3">
+            <TrainerSprite
+              spriteKey={gym.spriteKey}
+              alt={gym.name}
+              className="w-20 h-20 object-contain"
+            />
+          </div>
+
           <p className="text-[11px] text-slate-300 italic mb-5 max-w-md mx-auto">
             “{gym.defeatQuote}”
           </p>
@@ -634,6 +678,31 @@ function Shell({ children }: { children: React.ReactNode }) {
           border-color: #a16207;
         }
         .boss-name { text-shadow: 3px 3px 0 rgba(0,0,0,0.9); }
+
+        /* Trainer artwork is pixel art — keep it crisp when scaled. */
+        .trainer-sprite { image-rendering: pixelated; display: block; }
+
+        .leader-portrait {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px;
+          background:
+            radial-gradient(circle at 50% 35%, rgba(250,204,21,0.18), transparent 70%),
+            #020617;
+          border: 3px solid #a16207;
+          box-shadow: 0 0 22px -6px rgba(250,204,21,0.5);
+          animation: portraitIn 480ms var(--ease-pop) both;
+        }
+        @keyframes portraitIn {
+          from { opacity: 0; transform: scale(0.8) translateY(8px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .leader-beaten {
+          border-color: #16a34a;
+          box-shadow: 0 0 22px -6px rgba(34,197,94,0.5);
+          filter: grayscale(0.55);
+        }
 
         .quote-box {
           background: #020617;

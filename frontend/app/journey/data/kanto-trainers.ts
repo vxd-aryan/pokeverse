@@ -366,6 +366,38 @@ export const KANTO_TRAINERS: RouteTrainer[] = [
   },
 ];
 
+// ============================================================
+// SPRITES
+// ============================================================
+// Trainer artwork comes from Pokémon Showdown's sprite archive,
+// which carries per-generation variants. FireRed/LeafGreen is
+// Gen 3, so the `-gen3` file is preferred and the plain file is
+// the fallback — see TrainerSprite, which walks that chain and
+// draws a silhouette if neither loads.
+
+export const TRAINER_CLASS_SPRITE: Record<TrainerClass, string> = {
+  'Bug Catcher': 'bugcatcher',
+  'Youngster': 'youngster',
+  'Lass': 'lass',
+  'Hiker': 'hiker',
+  'Super Nerd': 'scientist',
+  'Team Rocket Grunt': 'rocket',
+  'Camper': 'camper',
+  'Picnicker': 'picnicker',
+  'Pokémaniac': 'pokemaniac',
+  'Gambler': 'gambler',
+  'Fisherman': 'fisherman',
+  'Bird Keeper': 'birdkeeper',
+  'Biker': 'biker',
+  'Swimmer': 'swimmer',
+  'Juggler': 'juggler',
+  'Tamer': 'tamer',
+};
+
+export function trainerSpriteKey(t: RouteTrainer): string {
+  return TRAINER_CLASS_SPRITE[t.trainerClass] ?? 'youngster';
+}
+
 // --- Lookups -----------------------------------------------
 
 export const KANTO_TRAINERS_BY_LOCATION: Record<string, RouteTrainer[]> =
