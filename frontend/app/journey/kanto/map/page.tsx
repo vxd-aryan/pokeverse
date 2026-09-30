@@ -24,9 +24,11 @@ import {
   getRegionState,
   getNextObjective,
   getGymUiState,
+  isTrainerDefeated,
   type JourneyRegionState,
   type GymUiState,
 } from '../../lib/journeyStorage';
+import { trainersAt, KANTO_TRAINERS } from '../../data/kanto-trainers';
 
 const GYM_LOCATION_IDS = KANTO_GYMS.map((g) => g.locationId);
 
@@ -234,7 +236,7 @@ export default function KantoMapPage() {
                 })}
 
                 {/* Nodes */}
-                {KANTO_MAP_NODES.map((node) => {
+                {KANTO_MAP_NODES.map((node, idx) => {
                   const open = isNodeReachable(node, completedCount);
                   const style = NODE_STYLE[node.kind];
                   const gymState = node.gymId
@@ -246,11 +248,18 @@ export default function KantoMapPage() {
                   const isFocused = focusedId === node.id;
                   const clickable = open && (!!node.gymId || !!node.blurb || !!node.landmark);
 
+                  const locals = trainersAt(node.id);
+                  const unbeaten = locals.filter((t) => !isTrainerDefeated(region, t.id)).length;
+
                   return (
                     <g
                       key={node.id}
                       onClick={() => open && handleNodeClick(node)}
-                      style={{ cursor: clickable ? 'pointer' : 'default' }}
+                      className={`map-node ${open ? 'node-open' : ''} ${isFocused ? 'node-focused' : ''}`}
+                      style={{
+                        cursor: open ? 'pointer' : 'default',
+                        animationDelay: `${Math.min(idx * 22, 700)}ms`,
+                      }}
                       opacity={open ? 1 : 0.42}
                     >
                       {/* Gym status ring */}
@@ -306,6 +315,31 @@ export default function KantoMapPage() {
                         <text x={node.x} y={node.y + 4} textAnchor="middle" fontSize="11" fill="#64748b">?</text>
                       )}
 
+                      {/* Trainer marker — how many are still standing here */}
+                      {open && locals.length > 0 && (
+                        <g className={unbeaten > 0 ? 'trainer-badge' : undefined}>
+                          <circle
+                            cx={node.x + half + 3}
+                            cy={node.y - half - 1}
+                            r="8"
+                            fill={unbeaten > 0 ? '#ef4444' : '#16a34a'}
+                            stroke="#0b1120"
+                            strokeWidth="2"
+                          />
+                          <text
+                            x={node.x + half + 3}
+                            y={node.y - half + 2.5}
+                            textAnchor="middle"
+                            fontSize="9"
+                            fontWeight="bold"
+                            fill="#ffffff"
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {unbeaten > 0 ? unbeaten : '✓'}
+                          </text>
+                        </g>
+                      )}
+
                       {/* Label */}
                       {(isBig || node.landmark) && (
                         <text
@@ -340,33 +374,92 @@ export default function KantoMapPage() {
                   const p = KANTO_NODE_BY_ID[playerNodeId];
                   if (!p) return null;
                   return (
-                    <g className="player-marker" style={{ pointerEvents: 'none' }}>
-                      <rect x={p.x - 11} y={p.y - 44} width="22" height="22" fill="#fbbf24" stroke="#78350f" strokeWidth="3" />
-                      <rect x={p.x - 11} y={p.y - 44} width="22" height="6" fill="#dc2626" />
-                      <rect x={p.x - 6} y={p.y - 34} width="4" height="4" fill="#1c1917" />
-                      <rect x={p.x + 2} y={p.y - 34} width="4" height="4" fill="#1c1917" />
-                      <path d={`M ${p.x - 5} ${p.y - 22} L ${p.x + 5} ${p.y - 22} L ${p.x} ${p.y - 15} Z`} fill="#78350f" />
+                    // Outer group holds position and glides between
+                    // towns; inner group does the idle bob, so the
+                    // two motions never fight each other.
+                    <g
+                      className="player-anchor"
+                      style={{ pointerEvents: 'none', transform: `translate(${p.x}px, ${p.y}px)` }}
+                    >
+                      <g className="player-marker">
+                        <ellipse cx="0" cy="-12" rx="11" ry="3" fill="rgba(0,0,0,0.35)" />
+                        <rect x="-11" y="-44" width="22" height="22" fill="#fbbf24" stroke="#78350f" strokeWidth="3" />
+                        <rect x="-11" y="-44" width="22" height="6" fill="#dc2626" />
+                        <rect x="-6" y="-34" width="4" height="4" fill="#1c1917" />
+                        <rect x="2" y="-34" width="4" height="4" fill="#1c1917" />
+                        <path d="M -5 -22 L 5 -22 L 0 -15 Z" fill="#78350f" />
+                      </g>
                     </g>
                   );
                 })()}
               </svg>
             </div>
 
-            {/* Focused-node readout */}
-            <div className="focus-bar mt-2 px-3 py-2">
+            {/* Focused-area detail panel */}
+            <div className="focus-bar mt-2 px-3 py-2" key={focused?.id ?? 'none'}>
               {focused && isNodeReachable(focused, completedCount) ? (
-                <>
-                  <p className="pixel-font text-[9px] text-yellow-300">
-                    {focused.label.toUpperCase()}
-                    {focused.landmark && <span className="text-slate-400"> · {focused.landmark}</span>}
-                  </p>
+                <div className="focus-in">
+                  <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                    <p className="pixel-font text-[9px] text-yellow-300">
+                      {focused.label.toUpperCase()}
+                      {focused.landmark && <span className="text-slate-400"> · {focused.landmark}</span>}
+                    </p>
+                    <span className="text-[8px] uppercase tracking-widest text-slate-500">
+                      {NODE_STYLE[focused.kind].label}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {focused.blurb || `${NODE_STYLE[focused.kind].label} — part of the route network.`}
+                    {focused.blurb || 'Part of the route network between Kanto’s towns.'}
                   </p>
-                </>
+
+                  {(() => {
+                    const locals = trainersAt(focused.id);
+                    if (locals.length === 0) return null;
+                    const beaten = locals.filter((t) => isTrainerDefeated(region, t.id)).length;
+                    return (
+                      <div className="mt-2 pt-2 border-t-2 border-slate-800">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[8px] uppercase tracking-widest text-slate-500">
+                            Trainers here
+                          </span>
+                          <span className="text-[9px] text-slate-400">{beaten}/{locals.length} beaten</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {locals.map((t) => {
+                            const done = isTrainerDefeated(region, t.id);
+                            const top = Math.max(...t.team.map((m) => m.level));
+                            const row = (
+                              <div className={`trainer-row flex items-center justify-between gap-2 px-2 py-1.5 ${done ? 'trainer-done' : ''}`}>
+                                <div className="min-w-0">
+                                  <p className="text-[8px] uppercase tracking-wider text-slate-500">
+                                    {t.trainerClass}
+                                  </p>
+                                  <p className="text-[10px] font-bold uppercase truncate">{t.name}</p>
+                                </div>
+                                <span className={`shrink-0 text-[8px] font-black uppercase px-2 py-1 border ${
+                                  done
+                                    ? 'text-green-400 border-green-700 bg-green-900/20'
+                                    : 'text-yellow-300 border-yellow-600 bg-yellow-500/10'
+                                }`}>
+                                  {done ? 'Beaten' : `Lv${top} · Battle`}
+                                </span>
+                              </div>
+                            );
+                            return done ? (
+                              <div key={t.id}>{row}</div>
+                            ) : (
+                              <Link key={t.id} href={`/journey/kanto/trainer/${t.id}`}>{row}</Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               ) : (
                 <p className="text-[10px] text-slate-500">
-                  Tap a town, landmark or gym to inspect it. Dashed lines are sea crossings.
+                  Tap any area to inspect it and battle the trainers standing there.
+                  Dashed lines are sea crossings.
                 </p>
               )}
             </div>
@@ -396,7 +489,7 @@ export default function KantoMapPage() {
               </div>
               <div className="h-3 bg-slate-900 border border-slate-700 overflow-hidden mb-2">
                 <div
-                  className="h-full bg-yellow-400 transition-all duration-500"
+                  className="h-full bg-yellow-400 progress-fill"
                   style={{ width: `${(completedCount / KANTO_GYMS.length) * 100}%` }}
                 />
               </div>
@@ -404,6 +497,30 @@ export default function KantoMapPage() {
                 <span>Team Avg Lv {avgLevel}</span>
                 <span>Target Lv {KANTO_PLAYER_LEVEL_CURVE[completedCount]}</span>
               </div>
+
+              {/* Route trainers are optional, so they get their own
+                  line rather than competing with gym progress. */}
+              {(() => {
+                const reachable = KANTO_TRAINERS.filter((t) => {
+                  const n = KANTO_NODE_BY_ID[t.locationId];
+                  return n && isNodeReachable(n, completedCount);
+                });
+                const beaten = reachable.filter((t) => isTrainerDefeated(region, t.id)).length;
+                return (
+                  <div className="mt-2 pt-2 border-t-2 border-slate-800">
+                    <div className="flex justify-between text-[9px] text-slate-400 uppercase tracking-wide mb-1">
+                      <span>Route Trainers</span>
+                      <span>{beaten}/{reachable.length}</span>
+                    </div>
+                    <div className="h-2 bg-slate-900 border border-slate-700 overflow-hidden">
+                      <div
+                        className="h-full bg-sky-400 progress-fill"
+                        style={{ width: reachable.length ? `${(beaten / reachable.length) * 100}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Badge case */}
@@ -463,7 +580,7 @@ export default function KantoMapPage() {
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
                           <div className="h-1.5 flex-1 bg-slate-900 border border-slate-700 overflow-hidden">
-                            <div className={`h-full ${hpColor} transition-all`} style={{ width: `${pct}%` }} />
+                            <div className={`h-full ${hpColor} progress-fill`} style={{ width: `${pct}%` }} />
                           </div>
                           {p.status && (
                             <span className={`status-chip status-${p.status}`}>
@@ -556,6 +673,18 @@ export default function KantoMapPage() {
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        /* One easing curve and one set of durations across the
+           whole Journey, so nothing feels out of step. */
+        :root {
+          --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+          --ease-pop: cubic-bezier(0.34, 1.4, 0.64, 1);
+          --t-fast: 140ms;
+          --t-base: 260ms;
+          --t-slow: 520ms;
+          --t-travel: 900ms;
+        }
+
         .pixel-font { font-family: 'Press Start 2P', monospace; line-height: 1.6; }
         .image-pixelated { image-rendering: pixelated; }
 
@@ -581,11 +710,11 @@ export default function KantoMapPage() {
         .objective-arrow {
           color: #facc15;
           font-size: 12px;
-          animation: nudge 1.1s steps(2) infinite;
+          display: inline-block;
         }
         @keyframes nudge {
           0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(3px); }
+          50% { transform: translateX(4px); }
         }
 
         .map-viewport {
@@ -600,19 +729,65 @@ export default function KantoMapPage() {
           min-height: 52px;
         }
 
-        .player-marker { animation: bob 1.3s ease-in-out infinite; }
+        /* The trainer walks to the next town rather than teleporting. */
+        .player-anchor { transition: transform var(--t-travel) var(--ease); }
+        .player-marker { animation: bob 1.6s var(--ease) infinite; }
         @keyframes bob {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
+          50% { transform: translateY(-4px); }
         }
 
-        .gym-ring-pulse { animation: ringPulse 1.4s ease-in-out infinite; }
+        /* Nodes settle in on load instead of appearing all at once. */
+        .map-node { animation: nodeIn var(--t-base) var(--ease) both; }
+        @keyframes nodeIn {
+          from { opacity: 0; transform: scale(0.82); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .map-node rect, .map-node circle, .map-node text {
+          transition: transform var(--t-fast) var(--ease),
+                      fill var(--t-base) var(--ease),
+                      stroke var(--t-base) var(--ease);
+        }
+        .node-open:hover { filter: brightness(1.18); }
+        .node-focused { filter: drop-shadow(0 0 6px rgba(255,255,255,0.55)); }
+
+        .gym-ring-pulse { animation: ringPulse 1.8s var(--ease) infinite; }
         @keyframes ringPulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.35; }
+          50% { opacity: 0.3; }
         }
 
-        .badge-earned { box-shadow: 0 0 10px -2px rgba(250,204,21,0.6); }
+        /* Unbeaten trainers gently ask to be noticed. */
+        .trainer-badge { animation: badgeBeat 2s var(--ease) infinite; transform-origin: center; }
+        @keyframes badgeBeat {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
+
+        .focus-in { animation: focusIn var(--t-base) var(--ease) both; }
+        @keyframes focusIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .trainer-row {
+          background: #0f172a;
+          border: 1px solid #1e293b;
+          transition: transform var(--t-fast) var(--ease),
+                      border-color var(--t-fast) var(--ease),
+                      background var(--t-fast) var(--ease);
+        }
+        a:hover .trainer-row { transform: translateX(3px); border-color: #facc15; background: #111c33; }
+        .trainer-done { opacity: 0.55; }
+
+        .badge-earned {
+          box-shadow: 0 0 10px -2px rgba(250,204,21,0.6);
+          animation: badgeIn 420ms var(--ease-pop) both;
+        }
+        @keyframes badgeIn {
+          from { opacity: 0; transform: scale(0.5) rotate(-18deg); }
+          to   { opacity: 1; transform: scale(1) rotate(0); }
+        }
 
         .party-row {
           background: #020617;
@@ -641,8 +816,24 @@ export default function KantoMapPage() {
         .status-sleep { background: #94a3b8; }
         .status-freeze { background: #38bdf8; }
 
-        .gym-row { box-shadow: 0 3px 0 rgba(0,0,0,0.35); transition: transform 0.12s ease; }
-        a:hover .gym-row { transform: translateY(-2px); }
+        .gym-row {
+          box-shadow: 0 3px 0 rgba(0,0,0,0.35);
+          transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+        }
+        a:hover .gym-row { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(0,0,0,0.4); }
+
+        .objective-arrow { animation: nudge 1.4s var(--ease) infinite; }
+
+        /* Progress bars fill smoothly rather than snapping. */
+        .progress-fill { transition: width var(--t-slow) var(--ease); }
+
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       `}</style>
     </div>
   );

@@ -16,6 +16,8 @@ export interface RegionStats {
   battlesWon: number;
   battlesLost: number;
   totalTurns: number;
+  /** Route battles only, so gym count stays readable on its own. */
+  trainersDefeated: number;
   startedAt: string | null;
   completedAt: string | null;
 }
@@ -23,6 +25,8 @@ export interface RegionStats {
 export interface JourneyRegionState {
   team: JourneyPokemon[] | null;
   completedGyms: string[]; // gym ids, in the order they were cleared
+  /** Route-trainer ids already beaten. Each is a one-time battle. */
+  defeatedTrainers: string[];
   regionComplete: boolean;
   stats: RegionStats;
 }
@@ -40,13 +44,20 @@ function emptyStats(): RegionStats {
     battlesWon: 0,
     battlesLost: 0,
     totalTurns: 0,
+    trainersDefeated: 0,
     startedAt: null,
     completedAt: null,
   };
 }
 
 function emptyRegionState(): JourneyRegionState {
-  return { team: null, completedGyms: [], regionComplete: false, stats: emptyStats() };
+  return {
+    team: null,
+    completedGyms: [],
+    defeatedTrainers: [],
+    regionComplete: false,
+    stats: emptyStats(),
+  };
 }
 
 function getAllJourneyData(): Record<string, JourneyState> {
@@ -83,11 +94,13 @@ export function getRegionState(username: string, regionId: string): JourneyRegio
   if (!state.regions[regionId]) {
     state.regions[regionId] = emptyRegionState();
   }
-  // Migrate saves written before stats existed.
-  if (!state.regions[regionId].stats) {
-    state.regions[regionId].stats = emptyStats();
-  }
-  return state.regions[regionId];
+  // Migrate saves written before these fields existed, so an
+  // in-progress Journey survives an update instead of breaking.
+  const region = state.regions[regionId];
+  if (!region.stats) region.stats = emptyStats();
+  if (typeof region.stats.trainersDefeated !== 'number') region.stats.trainersDefeated = 0;
+  if (!Array.isArray(region.defeatedTrainers)) region.defeatedTrainers = [];
+  return region;
 }
 
 export function saveRegionState(username: string, regionId: string, regionState: JourneyRegionState) {
@@ -136,6 +149,26 @@ export function recordDefeat(username: string, regionId: string, turns = 0) {
   region.stats.battlesLost += 1;
   region.stats.totalTurns += turns;
   saveRegionState(username, regionId, region);
+}
+
+export function markTrainerDefeated(
+  username: string,
+  regionId: string,
+  trainerId: string,
+  turns = 0
+) {
+  const region = getRegionState(username, regionId);
+  if (!region.defeatedTrainers.includes(trainerId)) {
+    region.defeatedTrainers.push(trainerId);
+    region.stats.trainersDefeated += 1;
+  }
+  region.stats.battlesWon += 1;
+  region.stats.totalTurns += turns;
+  saveRegionState(username, regionId, region);
+}
+
+export function isTrainerDefeated(region: JourneyRegionState, trainerId: string): boolean {
+  return (region.defeatedTrainers || []).includes(trainerId);
 }
 
 export function markRegionComplete(username: string, regionId: string) {
