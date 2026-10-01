@@ -228,6 +228,53 @@ export function addCaught(
   return destination;
 }
 
+/**
+ * Moves a party member to the front. Slot one is the Pokémon that
+ * leads every battle, so this is how the player picks their lead.
+ */
+export function setLead(username: string, regionId: string, index: number) {
+  return updateRegion(username, regionId, (r) => {
+    if (index <= 0 || !r.party[index]) return;
+    const [mon] = r.party.splice(index, 1);
+    r.party.unshift(mon);
+  });
+}
+
+/** Reorders the party to the given sequence of current indices. */
+export function reorderParty(username: string, regionId: string, order: number[]) {
+  return updateRegion(username, regionId, (r) => {
+    const next = order.map((i) => r.party[i]).filter(Boolean);
+    if (next.length === r.party.length) r.party = next;
+  });
+}
+
+/**
+ * Commits a chosen party after a full-party catch: the six kept
+ * become the party, everyone else goes to the PC.
+ */
+export function commitParty(
+  username: string,
+  regionId: string,
+  keep: JourneyPokemon[],
+  toBox: JourneyPokemon[]
+) {
+  return updateRegion(username, regionId, (r) => {
+    r.party = keep.slice(0, PARTY_LIMIT);
+    for (const mon of toBox) {
+      if (r.box.length < BOX_LIMIT) r.box.push(mon);
+    }
+  });
+}
+
+/** Records a catch without deciding where it goes — the UI will. */
+export function registerCatch(username: string, regionId: string, mon: JourneyPokemon) {
+  return updateRegion(username, regionId, (r) => {
+    if (!r.seen.includes(mon.pokemonId)) r.seen.push(mon.pokemonId);
+    if (!r.caught.includes(mon.pokemonId)) r.caught.push(mon.pokemonId);
+    r.stats.pokemonCaught += 1;
+  });
+}
+
 /** Swap a party member with one in the box. */
 export function swapPartyAndBox(
   username: string,

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUserStore } from '@/store/userStore';
 import BattleScene, { type BattleOutcome } from '../../../components/BattleScene';
+import GrassField, { type FieldTerrain } from '../../../components/GrassField';
 import { TrainerSprite } from '../../../components/TrainerSprite';
 import { KANTO_GYMS, type JourneyPokemon } from '../../../data/kanto';
 import { KANTO_NODE_BY_ID, isNodeReachable } from '../../../data/kanto-map';
@@ -17,7 +18,8 @@ import {
   getRegionState, hasStarted, travelTo, countStep, addItem, addMoney,
   addCaught, setParty, healParty, buyItem, countWildBattle, payoutOnLoss,
   markSeen, markTrainerDefeated, isTrainerDefeated, getGymUiState,
-  movePartyToBox, moveBoxToParty, PARTY_LIMIT,
+  movePartyToBox, moveBoxToParty, PARTY_LIMIT, setLead,
+  commitParty, registerCatch,
   type JourneyRegionState,
 } from '../../../lib/journeyStorage';
 import { trainerPrize } from '../../../data/kanto-items';
@@ -31,7 +33,7 @@ import { trainerPrize } from '../../../data/kanto-items';
 // challenged, and towns offer healing and a shop.
 // ============================================================
 
-type View = 'area' | 'wild' | 'trainer' | 'party' | 'bag' | 'mart';
+type View = 'area' | 'wild' | 'trainer' | 'party' | 'bag' | 'mart' | 'keep-six';
 
 interface ActiveBattle {
   kind: 'wild' | 'trainer';
@@ -51,8 +53,10 @@ export default function AreaPage() {
   const [view, setView] = useState<View>('area');
   const [battle, setBattle] = useState<ActiveBattle | null>(null);
   const [feed, setFeed] = useState<string[]>([]);
-  const [stepping, setStepping] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  /** A catch made with a full party, waiting on the keep-six choice. */
+  const [overflowCatch, setOverflowCatch] = useState<JourneyPokemon | null>(null);
+  const [lastEvent, setLastEvent] = useState<string | null>(null);
 
   const node = KANTO_NODE_BY_ID[id];
   const area = encountersFor(id);
@@ -94,28 +98,31 @@ export default function AreaPage() {
 
   // ---------- Exploring ----------
 
-  const explore = async () => {
-    if (!region || stepping || !area) return;
-    setStepping(true);
+  /**
+   * One step. Returns true when the walk should stop — i.e. an
+   * encounter or a find interrupted it.
+   */
+  const explore = async (): Promise<boolean> => {
+    if (!region || !area) return true;
     countStep(user.username, 'kanto');
 
     const result = takeStep(id);
 
     if (result.kind === 'nothing') {
-      push(randomQuiet());
+      const line = randomQuiet();
+      setLastEvent(line);
       refresh();
-      setStepping(false);
-      return;
+      return false; // keep walking
     }
 
     if (result.kind === 'item') {
       const item = getItem(result.itemId)!;
       addItem(user.username, 'kanto', result.itemId, 1);
       push(`You found a ${item.name}!`);
+      setLastEvent(`You found a ${item.name}!`);
       flashToast(`Found ${item.name}`);
       refresh();
-      setStepping(false);
-      return;
+      return true; // stop so the find registers
     }
 
     // Wild encounter
@@ -126,14 +133,19 @@ export default function AreaPage() {
       markSeen(user.username, 'kanto', wild.pokemonId);
       countWildBattle(user.username, 'kanto');
       push(`A wild ${wild.name} (Lv${wild.level}) appeared!`);
+      setLastEvent(`A wild ${wild.name} appeared!`);
       setBattle({ kind: 'wild', opponents: [wild] });
       setView('wild');
     } catch (err) {
       console.error('[journey] could not build wild Pokémon:', err);
-      push('Something rustled in the grass, but got away.');
+      setLastEvent('Something rustled, but got away.');
     }
-    setStepping(false);
+    return true;
   };
+
+  /** Which field art this area gets. */
+  const terrain: FieldTerrain =
+    node?.kind === 'cave' ? 'cave' : node?.kind === 'water' ? 'water' : 'grass';
 
   // ---------- Trainers ----------
 
@@ -168,13 +180,23 @@ export default function AreaPage() {
     const trainer = battle?.trainerId ? locals.find((t) => t.id === battle.trainerId) : null;
 
     if (outcome.result === 'caught' && outcome.caught) {
+      // A full party means the player decides who stays, rather
+      // than the newcomer being silently filed away.
+      if (outcome.party.length >= PARTY_LIMIT) {
+        registerCatch(user.username, 'kanto', outcome.caught);
+        push(`${outcome.caught.name} was caught! Your party is full — choose six to carry.`);
+        flashToast(`Caught ${outcome.caught.name}!`);
+        setOverflowCatch(outcome.caught);
+        setBattle(null);
+        setView('keep-six');
+        refresh();
+        return;
+      }
       const where = addCaught(user.username, 'kanto', outcome.caught);
       push(
         where === 'party'
           ? `${outcome.caught.name} joined your party!`
-          : where === 'box'
-          ? `${outcome.caught.name} was sent to your box.`
-          : `Your party and box are both full — ${outcome.caught.name} was released.`
+          : `${outcome.caught.name} was sent to the PC.`
       );
       flashToast(`Caught ${outcome.caught.name}!`);
     } else if (outcome.result === 'win') {
@@ -312,21 +334,23 @@ export default function AreaPage() {
 
             {/* Explore */}
             {area && (
-              <div className="ar-panel p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="ar-pixel text-[9px] text-slate-400">TALL GRASS</span>
-                  <span className="text-[9px] text-slate-500">{region.stats.stepsTaken} steps</span>
+              <div className="ar-panel p-3 md:p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="ar-pixel text-[9px] text-slate-400">
+                    {terrain === 'cave' ? 'DARK CAVE' : terrain === 'water' ? 'OPEN WATER' : 'TALL GRASS'}
+                  </span>
+                  <span className="text-[9px] text-slate-500">
+                    Lead: {region.party[0]?.name ?? '—'}
+                  </span>
                 </div>
-                <button
-                  onClick={explore}
-                  disabled={stepping || !partyAlive}
-                  className="ar-explore w-full"
-                >
-                  {!partyAlive ? 'Your Pokémon need healing' : stepping ? 'Walking…' : 'Explore ▸'}
-                </button>
-                <p className="text-[9px] text-slate-500 mt-2">
-                  Each step might turn up a wild Pokémon or an item.
-                </p>
+                <GrassField
+                  terrain={terrain}
+                  onStep={explore}
+                  disabled={!partyAlive}
+                  disabledReason="Your Pokémon need healing"
+                  stepsTaken={region.stats.stepsTaken}
+                  lastEvent={lastEvent}
+                />
               </div>
             )}
 
@@ -456,8 +480,28 @@ export default function AreaPage() {
             region={region}
             onBox={(i) => { movePartyToBox(user.username, 'kanto', i); refresh(); }}
             onRetrieve={(i) => { moveBoxToParty(user.username, 'kanto', i); refresh(); }}
+            onLead={(i) => {
+              setLead(user.username, 'kanto', i);
+              const r = refresh();
+              if (r) flashToast(`${r.party[0]?.name} now leads`);
+            }}
           />
         </Overlay>
+      )}
+
+      {view === 'keep-six' && overflowCatch && (
+        <KeepSixChooser
+          party={region.party}
+          newcomer={overflowCatch}
+          onConfirm={(keep, toBox) => {
+            commitParty(user.username, 'kanto', keep, toBox);
+            const boxed = toBox.map((m) => m.name).join(', ');
+            push(boxed ? `${boxed} sent to the PC.` : 'Party unchanged.');
+            setOverflowCatch(null);
+            setView('area');
+            refresh();
+          }}
+        />
       )}
 
       {view === 'bag' && (
@@ -514,20 +558,29 @@ export default function AreaPage() {
 // ============================================================
 
 function PartyPanel({
-  region, onBox, onRetrieve,
+  region, onBox, onRetrieve, onLead,
 }: {
   region: JourneyRegionState;
   onBox: (i: number) => void;
   onRetrieve: (i: number) => void;
+  onLead: (i: number) => void;
 }) {
   return (
     <>
+      <p className="text-[9px] text-slate-500 mb-2">
+        Slot one leads every battle. Tap <span className="text-yellow-300">Lead</span> to move a
+        Pokémon to the front.
+      </p>
       <div className="flex flex-col gap-1.5 mb-4">
         {region.party.map((p, i) => {
           const pct = Math.max(0, (p.currentHp / p.maxHp) * 100);
+          const isLead = i === 0;
           return (
-            <div key={i} className="ar-row px-3 py-2 flex items-center gap-3">
-              <img src={frontSprite(p.pokemonId)} alt={p.name} className="w-11 h-11 object-contain ar-pixelated shrink-0" />
+            <div key={i} className={`ar-row px-3 py-2 flex items-center gap-3 ${isLead ? 'ar-lead' : ''}`}>
+              <div className="relative shrink-0">
+                <img src={frontSprite(p.pokemonId)} alt={p.name} className="w-11 h-11 object-contain ar-pixelated" />
+                {isLead && <span className="ar-leadtag">LEAD</span>}
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex justify-between items-baseline gap-2">
                   <span className="text-[11px] font-black uppercase truncate">{p.name}</span>
@@ -545,9 +598,21 @@ function PartyPanel({
                   {p.caughtAt && <span className="text-[8px] text-slate-700 ml-auto">{p.caughtAt}</span>}
                 </div>
               </div>
-              {region.party.length > 1 && (
-                <button onClick={() => onBox(i)} className="ar-tag shrink-0">Box</button>
-              )}
+              <div className="flex flex-col gap-1 shrink-0">
+                {!isLead && (
+                  <button
+                    onClick={() => onLead(i)}
+                    disabled={p.currentHp <= 0}
+                    className="ar-tag ar-tag-go disabled:opacity-40"
+                    title={p.currentHp <= 0 ? 'A fainted Pokémon cannot lead' : 'Move to slot one'}
+                  >
+                    Lead
+                  </button>
+                )}
+                {region.party.length > 1 && (
+                  <button onClick={() => onBox(i)} className="ar-tag">Box</button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -575,6 +640,95 @@ function PartyPanel({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Shown when a catch lands on a full party. Seven candidates, six
+ * slots — the player picks who travels and who goes to the PC.
+ * There's no cancel: the Pokémon has already been caught, so the
+ * only question is which six are carried.
+ */
+function KeepSixChooser({
+  party, newcomer, onConfirm,
+}: {
+  party: JourneyPokemon[];
+  newcomer: JourneyPokemon;
+  onConfirm: (keep: JourneyPokemon[], toBox: JourneyPokemon[]) => void;
+}) {
+  const candidates = [...party, newcomer];
+  const newcomerIdx = candidates.length - 1;
+  // Starts on the current party, so keeping things as they are is
+  // one tap away.
+  const [picked, setPicked] = useState<number[]>(party.map((_, i) => i));
+
+  const toggle = (i: number) => {
+    setPicked((prev) => {
+      if (prev.includes(i)) return prev.filter((x) => x !== i);
+      if (prev.length >= PARTY_LIMIT) return prev;
+      return [...prev, i];
+    });
+  };
+
+  const full = picked.length === PARTY_LIMIT;
+  const boxed = candidates.filter((_, i) => !picked.includes(i));
+
+  return (
+    <div className="ar-overlay">
+      <div className="ar-sheet" onClick={(e) => e.stopPropagation()}>
+        <p className="ar-pixel text-[10px] text-yellow-300 mb-1">PARTY FULL</p>
+        <p className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+          You caught <span className="text-yellow-300">{newcomer.name}</span>, but you can only
+          carry six. Choose which six travel with you — the rest go to the PC and can be collected
+          from your party screen later.
+        </p>
+
+        <div className="grid grid-cols-2 gap-1.5 mb-3 max-h-[46vh] overflow-y-auto pr-1">
+          {candidates.map((p, i) => {
+            const isPicked = picked.includes(i);
+            const isNew = i === newcomerIdx;
+            const blockedByFull = !isPicked && full;
+            return (
+              <button
+                key={i}
+                onClick={() => toggle(i)}
+                disabled={blockedByFull}
+                className={`ar-pick px-2 py-2 flex items-center gap-2 ${isPicked ? 'ar-pick-on' : ''} ${
+                  blockedByFull ? 'opacity-35' : ''
+                }`}
+              >
+                <img src={frontSprite(p.pokemonId)} alt={p.name} className="w-10 h-10 object-contain ar-pixelated shrink-0" />
+                <div className="min-w-0 text-left flex-1">
+                  <span className="block text-[9px] font-black uppercase truncate">{p.name}</span>
+                  <span className="block text-[8px] text-slate-500">Lv{p.level} · {p.types.join('/')}</span>
+                  {isNew && <span className="block text-[7px] text-yellow-400 uppercase tracking-wider">New</span>}
+                </div>
+                <span className={`ar-checkbox ${isPicked ? 'ar-checkbox-on' : ''}`}>
+                  {isPicked ? '✓' : ''}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[9px] text-slate-500">
+            {picked.length}/{PARTY_LIMIT} chosen
+          </span>
+          <span className="text-[9px] text-slate-500 truncate ml-2">
+            {boxed.length > 0 ? `To PC: ${boxed.map((b) => b.name).join(', ')}` : ''}
+          </span>
+        </div>
+
+        <button
+          onClick={() => onConfirm(picked.map((i) => candidates[i]), boxed)}
+          disabled={!full}
+          className="ar-confirm w-full"
+        >
+          {full ? 'Confirm Party' : `Choose ${PARTY_LIMIT - picked.length} more`}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -708,6 +862,44 @@ function AreaStyles() {
       }
       .ar-tag-go { color: #facc15; border-color: #a16207; background: rgba(250,204,21,0.1); }
       .ar-tag-done { color: #4ade80; border-color: #15803d; background: rgba(34,197,94,0.1); }
+
+      /* Lead slot reads differently from the rest of the party. */
+      .ar-lead { border-color: #a16207; background: rgba(250,204,21,0.06); }
+      .ar-leadtag {
+        position: absolute; bottom: -4px; left: 50%;
+        transform: translateX(-50%);
+        font-size: 6px; font-weight: 900; letter-spacing: 0.1em;
+        background: #facc15; color: #1c1917;
+        padding: 1px 4px;
+      }
+
+      .ar-pick {
+        background: #020617;
+        border: 2px solid #1e293b;
+        transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+                    transform var(--t-fast) var(--ease);
+      }
+      .ar-pick:hover:not(:disabled) { transform: translateY(-2px); }
+      .ar-pick-on { border-color: #facc15; background: rgba(250,204,21,0.08); }
+
+      .ar-checkbox {
+        width: 16px; height: 16px; shrink: 0;
+        border: 2px solid #334155;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 900;
+        color: #1c1917;
+      }
+      .ar-checkbox-on { background: #facc15; border-color: #a16207; }
+
+      .ar-confirm {
+        padding: 12px;
+        font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em;
+        background: #facc15; color: #1c1917; border-bottom: 4px solid #a16207;
+      }
+      .ar-confirm:active:not(:disabled) { transform: translateY(3px); border-bottom-width: 1px; }
+      .ar-confirm:disabled {
+        background: #475569; color: #94a3b8; border-bottom-color: #1e293b; cursor: not-allowed;
+      }
 
       .ar-log { animation: arLog var(--t-base) var(--ease) both; }
       @keyframes arLog { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: none; } }
