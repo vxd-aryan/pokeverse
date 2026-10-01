@@ -9,6 +9,7 @@ import {
   IMPLEMENTED_REGIONS,
   isRegionUnlocked,
   getRegionState,
+  hasStarted,
 } from './lib/journeyStorage';
 import { KANTO_GYMS } from './data/kanto';
 
@@ -42,8 +43,8 @@ export default function JourneyHubPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="pixel-font text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
         <p className="text-[11px] text-slate-400 mb-8 max-w-lg">
-          Travel region by region, earn every gym badge, and raise a fresh team from scratch
-          each time. Kanto follows FireRed / LeafGreen canon.
+          Pick a starter, explore the routes, catch your own team and earn every badge.
+          Kanto follows FireRed / LeafGreen.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -54,15 +55,15 @@ export default function JourneyHubPage() {
             const complete = state?.regionComplete;
             const gymCount = REGION_GYM_COUNT[regionId] ?? 8;
             const gymsDone = state?.completedGyms.length ?? 0;
-            const hasTeam = !!state?.team && state.team.length === 6;
+            const started = !!state && hasStarted(state);
 
             const href = !unlocked
               ? '#'
               : complete
               ? `/journey/${regionId}/complete`
-              : hasTeam
+              : started
               ? `/journey/${regionId}/map`
-              : `/journey/${regionId}/team`;
+              : `/journey/${regionId}/starter`;
 
             const card = (
               <div
@@ -98,8 +99,8 @@ export default function JourneyHubPage() {
                         ? `All ${gymCount} badges earned`
                         : !unlocked
                         ? 'Locked'
-                        : !hasTeam
-                        ? 'Choose your team'
+                        : !started
+                        ? 'Choose your starter'
                         : `Badges ${gymsDone}/${gymCount}`}
                     </p>
                   </div>

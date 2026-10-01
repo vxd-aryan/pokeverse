@@ -51,6 +51,12 @@ export interface JourneyPokemon {
   status?: StatusCondition;
   /** 1 = base stage, 2 = middle, 3 = final. Shown on the party screen. */
   evolutionStage?: number;
+  /** Experience toward the NEXT level, not a lifetime total. */
+  xp?: number;
+  /** Nickname, if the player gave one on capture. */
+  nickname?: string;
+  /** Where it came from — shown on the summary screen. */
+  caughtAt?: string;
 }
 
 // ============================================================

@@ -31,7 +31,7 @@ export default function KantoCompletePage() {
 
   if (!mounted || !region || !user) return null;
 
-  const team = region.team || [];
+  const team = region.party || [];
   const stats = region.stats;
   const days =
     stats.startedAt && stats.completedAt
@@ -109,9 +109,12 @@ export default function KantoCompletePage() {
           <p className="pixel-font text-[9px] text-slate-400 mb-4 text-center">REGION STATISTICS</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <Stat label="Badges" value={`${region.completedGyms.length}/8`} />
-            <Stat label="Gyms Won" value={stats.battlesWon} />
-            <Stat label="Losses" value={stats.battlesLost} />
-            <Stat label="Turns Fought" value={stats.totalTurns} />
+            <Stat label="Caught" value={region.caught.length} />
+            <Stat label="Seen" value={region.seen.length} />
+            <Stat label="Wild Battles" value={stats.wildBattles} />
+            <Stat label="Trainers Beaten" value={stats.trainerBattles} />
+            <Stat label="Steps Taken" value={stats.stepsTaken} />
+            <Stat label="Blackouts" value={stats.battlesLost} />
             <Stat label="Highest Level" value={highestLevel} />
             <Stat label="Evolved" value={`${fullyEvolved}/${team.length}`} />
             {days !== null && <Stat label="Days on Journey" value={days} />}
