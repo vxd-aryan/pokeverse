@@ -7,22 +7,24 @@ import { useUserStore } from '@/store/userStore';
 import BattleScene, { type BattleOutcome } from '../../../components/BattleScene';
 import GrassField, { type FieldTerrain } from '../../../components/GrassField';
 import { TrainerSprite } from '../../../components/TrainerSprite';
-import { KANTO_GYMS, type JourneyPokemon } from '../../../data/kanto';
-import { KANTO_NODE_BY_ID, isNodeReachable } from '../../../data/kanto-map';
-import { encountersFor, isTown } from '../../../data/kanto-encounters';
-import { trainersAt, trainerSpriteKey } from '../../../data/kanto-trainers';
-import { getItem, MART_STOCK, ITEMS, bagEntries } from '../../../data/kanto-items';
+import { getRegion } from '../../../data/regions';
+import {
+  nodeById, trainersAt, encountersFor, isNodeReachable, CHALLENGE_STYLE,
+  type JourneyPokemon,
+} from '../../../data/types';
+import { spriteKeyForClass } from '../../../data/trainerSprites';
+import { getItem, MART_STOCK, ITEMS, bagEntries, trainerPrize } from '../../../data/items';
 import { takeStep } from '../../../lib/wild';
 import { buildPokemon, frontSprite, prefetchSpecies } from '../../../lib/fetchMon';
 import {
   getRegionState, hasStarted, travelTo, countStep, addItem, addMoney,
   addCaught, setParty, setBag, addSeen, healParty, buyItem, countWildBattle, payoutOnLoss,
-  markSeen, markTrainerDefeated, isTrainerDefeated, getGymUiState,
+  markSeen, markTrainerDefeated, isTrainerDefeated, getChallengeUiState,
   movePartyToBox, moveBoxToParty, PARTY_LIMIT, setLead,
   commitParty, registerCatch,
   type JourneyRegionState,
 } from '../../../lib/journeyStorage';
-import { trainerPrize } from '../../../data/kanto-items';
+import { journeyStyles, GlobalStyle } from '../../../components/JourneyShell';
 
 // ============================================================
 // AREA VIEW
@@ -42,14 +44,16 @@ interface ActiveBattle {
 }
 
 export default function AreaPage() {
-  const { nodeId } = useParams();
+  const { regionId, nodeId } = useParams();
   const router = useRouter();
   const { user } = useUserStore() as any;
+  const rid = String(regionId);
   const id = String(nodeId);
+  const region = getRegion(rid);
 
   const [mounted, setMounted] = useState(false);
   const [blocked, setBlocked] = useState<string | null>(null);
-  const [region, setRegion] = useState<JourneyRegionState | null>(null);
+  const [regionState, setRegionState] = useState<JourneyRegionState | null>(null);
   const [view, setView] = useState<View>('area');
   const [battle, setBattle] = useState<ActiveBattle | null>(null);
   const [feed, setFeed] = useState<string[]>([]);
@@ -58,37 +62,38 @@ export default function AreaPage() {
   const [overflowCatch, setOverflowCatch] = useState<JourneyPokemon | null>(null);
   const [lastEvent, setLastEvent] = useState<string | null>(null);
 
-  const node = KANTO_NODE_BY_ID[id];
-  const area = encountersFor(id);
-  const town = isTown(id);
-  const locals = trainersAt(id);
-  const gym = KANTO_GYMS.find((g) => g.locationId === id);
+  const node = region ? nodeById(region)[id] : undefined;
+  const area = region ? encountersFor(region, id) : undefined;
+  const town = !!node?.isTown;
+  const locals = region ? trainersAt(region, id) : [];
+  const challenge = region?.challenges.find((c) => c.locationId === id);
 
   const refresh = () => {
-    if (!user) return null;
-    const r = getRegionState(user.username, 'kanto');
-    setRegion({ ...r });
+    if (!user || !region) return null;
+    const r = getRegionState(user.username, rid, region.map.nodes[0]?.id);
+    setRegionState({ ...r });
     return r;
   };
 
   useEffect(() => {
     setMounted(true);
     if (!user) { setBlocked('no-user'); return; }
+    if (!region) { setBlocked('no-region'); return; }
     if (!node) { setBlocked('no-node'); return; }
 
-    const r = getRegionState(user.username, 'kanto');
+    const r = getRegionState(user.username, rid, region.map.nodes[0]?.id);
     if (!hasStarted(r)) { setBlocked('no-starter'); return; }
-    if (!isNodeReachable(node, r.completedGyms.length)) { setBlocked('locked'); return; }
+    if (!isNodeReachable(node, r.clearedChallenges.length)) { setBlocked('locked'); return; }
 
-    travelTo(user.username, 'kanto', id);
-    setRegion({ ...getRegionState(user.username, 'kanto') });
+    travelTo(user.username, rid, id);
+    setRegionState({ ...getRegionState(user.username, rid, region.map.nodes[0]?.id) });
     setFeed([town ? `You arrive in ${node.label}.` : `You step onto ${node.label}.`]);
 
     // Warm the species cache for this area so the first encounter
     // doesn't stall on a network round trip.
     if (area) prefetchSpecies(area.slots.map((s) => s.pokemonId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, id]);
+  }, [user, rid, id, region]);
 
   const push = (line: string) => setFeed((prev) => [...prev.slice(-30), line]);
   const flashToast = (msg: string) => {
@@ -103,10 +108,10 @@ export default function AreaPage() {
    * encounter or a find interrupted it.
    */
   const explore = async (): Promise<boolean> => {
-    if (!region || !area) return true;
-    countStep(user.username, 'kanto');
+    if (!regionState || !area) return true;
+    countStep(user.username, rid);
 
-    const result = takeStep(id);
+    const result = takeStep(area);
 
     if (result.kind === 'nothing') {
       const line = randomQuiet();
@@ -117,7 +122,7 @@ export default function AreaPage() {
 
     if (result.kind === 'item') {
       const item = getItem(result.itemId)!;
-      addItem(user.username, 'kanto', result.itemId, 1);
+      addItem(user.username, rid, result.itemId, 1);
       push(`You found a ${item.name}!`);
       setLastEvent(`You found a ${item.name}!`);
       flashToast(`Found ${item.name}`);
@@ -128,10 +133,10 @@ export default function AreaPage() {
     // Wild encounter
     try {
       const wild = await buildPokemon(result.slot.pokemonId, result.level, {
-        caughtAt: node.label,
+        caughtAt: node!.label,
       });
-      markSeen(user.username, 'kanto', wild.pokemonId);
-      countWildBattle(user.username, 'kanto');
+      markSeen(user.username, rid, wild.pokemonId);
+      countWildBattle(user.username, rid);
       push(`A wild ${wild.name} (Lv${wild.level}) appeared!`);
       setLastEvent(`A wild ${wild.name} appeared!`);
       setBattle({ kind: 'wild', opponents: [wild] });
@@ -151,7 +156,7 @@ export default function AreaPage() {
 
   const challengeTrainer = async (trainerId: string) => {
     const t = locals.find((x) => x.id === trainerId);
-    if (!t || !region) return;
+    if (!t || !regionState) return;
     try {
       const team = await Promise.all(t.team.map((m) => buildPokemon(m.pokemonId, m.level)));
       setBattle({ kind: 'trainer', opponents: team, trainerId });
@@ -165,14 +170,14 @@ export default function AreaPage() {
   // ---------- Battle results ----------
 
   const handleBattleEnd = (outcome: BattleOutcome) => {
-    if (!region) return;
+    if (!regionState) return;
 
     // Party, bag and dex all carry back, whatever happened. Each
     // goes through its own writer — mutating a getRegionState
     // result does nothing, since that's a fresh parse each call.
-    setParty(user.username, 'kanto', outcome.party);
-    setBag(user.username, 'kanto', outcome.bag);
-    addSeen(user.username, 'kanto', outcome.seenIds);
+    setParty(user.username, rid, outcome.party);
+    setBag(user.username, rid, outcome.bag);
+    addSeen(user.username, rid, outcome.seenIds);
 
     const trainer = battle?.trainerId ? locals.find((t) => t.id === battle.trainerId) : null;
 
@@ -180,7 +185,7 @@ export default function AreaPage() {
       // A full party means the player decides who stays, rather
       // than the newcomer being silently filed away.
       if (outcome.party.length >= PARTY_LIMIT) {
-        registerCatch(user.username, 'kanto', outcome.caught);
+        registerCatch(user.username, rid, outcome.caught);
         push(`${outcome.caught.name} was caught! Your party is full — choose six to carry.`);
         flashToast(`Caught ${outcome.caught.name}!`);
         setOverflowCatch(outcome.caught);
@@ -189,7 +194,7 @@ export default function AreaPage() {
         refresh();
         return;
       }
-      const where = addCaught(user.username, 'kanto', outcome.caught);
+      const where = addCaught(user.username, rid, outcome.caught);
       push(
         where === 'party'
           ? `${outcome.caught.name} joined your party!`
@@ -200,8 +205,8 @@ export default function AreaPage() {
       if (trainer) {
         const top = Math.max(...trainer.team.map((m) => m.level));
         const prize = trainerPrize(top, false);
-        markTrainerDefeated(user.username, 'kanto', trainer.id);
-        addMoney(user.username, 'kanto', prize);
+        markTrainerDefeated(user.username, rid, trainer.id);
+        addMoney(user.username, rid, prize);
         push(`You defeated ${trainer.name}! Won ₽${prize}.`);
         flashToast(`+₽${prize}`);
       } else {
@@ -210,13 +215,13 @@ export default function AreaPage() {
     } else if (outcome.result === 'run') {
       push('You got away safely.');
     } else if (outcome.result === 'loss') {
-      const lost = payoutOnLoss(user.username, 'kanto');
+      const lost = payoutOnLoss(user.username, rid, region!.map.nodes.filter((n) => n.isTown).map((n) => n.id));
       push(`You blacked out! You paid ₽${lost} and were rushed to a Pokémon Center.`);
       flashToast('You blacked out!');
       setBattle(null);
       setView('area');
       refresh();
-      router.push('/journey/kanto/map');
+      router.push(`/journey/${rid}/map`);
       return;
     }
 
@@ -228,7 +233,7 @@ export default function AreaPage() {
   // ---------- Town services ----------
 
   const heal = () => {
-    healParty(user.username, 'kanto');
+    healParty(user.username, rid);
     push('Your Pokémon were restored to full health.');
     flashToast('Party healed');
     refresh();
@@ -236,7 +241,7 @@ export default function AreaPage() {
 
   const buy = (itemId: string) => {
     const price = ITEMS[itemId].price;
-    const ok = buyItem(user.username, 'kanto', itemId, price, 1);
+    const ok = buyItem(user.username, rid, itemId, price, 1);
     flashToast(ok ? `Bought ${ITEMS[itemId].name}` : 'Not enough money');
     if (ok) push(`Bought a ${ITEMS[itemId].name} for ₽${price}.`);
     refresh();
@@ -244,12 +249,13 @@ export default function AreaPage() {
 
   // ---------- Guards ----------
 
-  if (!mounted) return <Status title="LOADING" body="Finding your way…" />;
-  if (blocked === 'no-user') return <Status title="NOT SIGNED IN" body="Sign in to continue." action={{ href: '/auth', label: 'Sign In' }} />;
-  if (blocked === 'no-node') return <Status title="NOWHERE TO GO" body="That place isn't on the Kanto map." action={{ href: '/journey/kanto/map', label: 'Back to Map' }} />;
-  if (blocked === 'no-starter') return <Status title="NO PARTNER YET" body="Professor Oak is waiting for you in Pallet Town." action={{ href: '/journey/kanto/starter', label: "Go to Oak's Lab" }} />;
-  if (blocked === 'locked') return <Status title="YOU CAN'T GO THERE YET" body="Earn more badges to open the way." action={{ href: '/journey/kanto/map', label: 'Back to Map' }} />;
-  if (!region || !node) return <Status title="LOADING" body="Finding your way…" />;
+  if (!mounted) return <Status rid={rid} title="LOADING" body="Finding your way…" />;
+  if (blocked === 'no-user') return <Status rid={rid} title="NOT SIGNED IN" body="Sign in to continue." action={{ href: '/auth', label: 'Sign In' }} />;
+  if (blocked === 'no-region') return <Status rid={rid} title="UNKNOWN REGION" body="There is no region by that name." action={{ href: '/journey', label: 'All Regions' }} />;
+  if (blocked === 'no-node') return <Status rid={rid} title="NOWHERE TO GO" body={`That place isn't on the ${region?.name ?? ''} map.`} action={{ href: `/journey/${rid}/map`, label: 'Back to Map' }} />;
+  if (blocked === 'no-starter') return <Status rid={rid} title="NO PARTNER YET" body={`${region?.professor ?? 'The professor'} is waiting for you in ${region?.labLocation ?? 'the lab'}.`} action={{ href: `/journey/${rid}/starter`, label: 'Go to the Lab' }} />;
+  if (blocked === 'locked') return <Status rid={rid} title="YOU CAN'T GO THERE YET" body="Earn more badges to open the way." action={{ href: `/journey/${rid}/map`, label: 'Back to Map' }} />;
+  if (!region || !regionState || !node) return <Status rid={rid} title="LOADING" body="Finding your way…" />;
 
   // ---------- Battle takes over the screen ----------
 
@@ -261,13 +267,13 @@ export default function AreaPage() {
           <BattleScene
             mode={battle.kind}
             playerName={user.username}
-            party={region.party}
-            bag={region.bag}
+            party={regionState.party}
+            bag={regionState.bag}
             opponents={battle.opponents}
             trainer={t ? {
               name: t.name,
               title: t.trainerClass,
-              spriteKey: trainerSpriteKey(t),
+              spriteKey: t.spriteKey ?? spriteKeyForClass(t.trainerClass),
               quote: t.quote,
               defeatQuote: t.defeatQuote,
             } : undefined}
@@ -279,8 +285,8 @@ export default function AreaPage() {
     );
   }
 
-  const partyAlive = region.party.some((p) => p.currentHp > 0);
-  const trainersLeft = locals.filter((t) => !isTrainerDefeated(region, t.id));
+  const partyAlive = regionState.party.some((p) => p.currentHp > 0);
+  const trainersLeft = locals.filter((t) => !isTrainerDefeated(regionState, t.id));
 
   return (
     <div className="ar-root min-h-screen p-3 md:p-6">
@@ -295,7 +301,7 @@ export default function AreaPage() {
               {node.landmark ? ` · ${node.landmark}` : ''}
             </p>
           </div>
-          <Link href="/journey/kanto/map" className="text-[10px] text-slate-400 hover:text-white underline shrink-0">
+          <Link href={`/journey/${rid}/map`} className="text-[10px] text-slate-400 hover:text-white underline shrink-0">
             ← Map
           </Link>
         </div>
@@ -303,7 +309,7 @@ export default function AreaPage() {
         {/* Trainer / money strip */}
         <div className="ar-panel flex items-center justify-between px-3 py-2 mb-3 gap-3">
           <div className="flex gap-1.5 min-w-0 overflow-x-auto">
-            {region.party.map((p, i) => {
+            {regionState.party.map((p, i) => {
               const pct = Math.max(0, (p.currentHp / p.maxHp) * 100);
               return (
                 <div key={i} className="ar-mini shrink-0 px-1.5 py-1 flex items-center gap-1.5">
@@ -321,7 +327,7 @@ export default function AreaPage() {
               );
             })}
           </div>
-          <span className="text-[10px] font-bold text-yellow-300 shrink-0">₽{region.money}</span>
+          <span className="text-[10px] font-bold text-yellow-300 shrink-0">₽{regionState.money}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-3">
@@ -337,7 +343,7 @@ export default function AreaPage() {
                     {terrain === 'cave' ? 'DARK CAVE' : terrain === 'water' ? 'OPEN WATER' : 'TALL GRASS'}
                   </span>
                   <span className="text-[9px] text-slate-500">
-                    Lead: {region.party[0]?.name ?? '—'}
+                    Lead: {regionState.party[0]?.name ?? '—'}
                   </span>
                 </div>
                 <GrassField
@@ -345,7 +351,7 @@ export default function AreaPage() {
                   onStep={explore}
                   disabled={!partyAlive}
                   disabledReason="Your Pokémon need healing"
-                  stepsTaken={region.stats.stepsTaken}
+                  stepsTaken={regionState.stats.stepsTaken}
                   lastEvent={lastEvent}
                 />
               </div>
@@ -371,23 +377,23 @@ export default function AreaPage() {
             )}
 
             {/* Gym */}
-            {gym && (() => {
-              const state = getGymUiState(region, KANTO_GYMS, gym.id);
+            {challenge && (() => {
+              const cState = getChallengeUiState(regionState, region!.challenges, challenge.id);
               return (
-                <div className={`ar-panel p-4 ${state === 'locked' ? 'opacity-60' : ''}`}>
-                  <p className="ar-pixel text-[9px] text-slate-400 mb-3">{gym.gymName.toUpperCase()}</p>
+                <div className={`ar-panel p-4 ${cState === 'locked' ? 'opacity-60' : ''}`}>
+                  <p className="ar-pixel text-[9px] text-slate-400 mb-3">{challenge.venue.toUpperCase()}</p>
                   <div className="flex items-center gap-3">
-                    <TrainerSprite spriteKey={gym.spriteKey} alt={gym.name} className="w-14 h-14 object-contain shrink-0" />
+                    <TrainerSprite spriteKey={challenge.spriteKey ?? ''} alt={challenge.name} className="w-14 h-14 object-contain shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-black uppercase">{gym.name}</p>
-                      <p className="text-[9px] text-slate-400">{gym.type} · {gym.badgeName}</p>
+                      <p className="text-[11px] font-black uppercase">{challenge.name}</p>
+                      <p className="text-[9px] text-slate-400">{challenge.type} · {challenge.rewardName}</p>
                     </div>
-                    {state === 'completed' ? (
+                    {cState === 'completed' ? (
                       <span className="ar-tag ar-tag-done shrink-0">Badge Earned</span>
-                    ) : state === 'locked' ? (
+                    ) : cState === 'locked' ? (
                       <span className="ar-tag shrink-0">Locked</span>
                     ) : (
-                      <Link href={`/journey/kanto/gym/${gym.id}`} className="ar-tag ar-tag-go shrink-0">
+                      <Link href={`/journey/${rid}/challenge/${challenge.id}`} className="ar-tag ar-tag-go shrink-0">
                         Challenge
                       </Link>
                     )}
@@ -407,7 +413,7 @@ export default function AreaPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {locals.map((t) => {
-                    const done = isTrainerDefeated(region, t.id);
+                    const done = isTrainerDefeated(regionState, t.id);
                     const top = Math.max(...t.team.map((m) => m.level));
                     return (
                       <button
@@ -416,7 +422,7 @@ export default function AreaPage() {
                         disabled={done || !partyAlive}
                         className={`ar-trainer flex items-center gap-2 px-2 py-1.5 ${done ? 'ar-trainer-done' : ''}`}
                       >
-                        <TrainerSprite spriteKey={trainerSpriteKey(t)} alt={t.name} className="w-9 h-9 object-contain shrink-0" />
+                        <TrainerSprite spriteKey={t.spriteKey ?? spriteKeyForClass(t.trainerClass)} alt={t.name} className="w-9 h-9 object-contain shrink-0" />
                         <div className="min-w-0 flex-1 text-left">
                           <p className="text-[8px] uppercase tracking-wider text-slate-500">{t.trainerClass}</p>
                           <p className="text-[10px] font-bold uppercase truncate">{t.name}</p>
@@ -446,24 +452,24 @@ export default function AreaPage() {
           <div className="flex flex-col gap-3">
             <div className="ar-panel p-3">
               <button onClick={() => setView('party')} className="ar-side mb-1.5">
-                Party ({region.party.length}/{PARTY_LIMIT})
+                Party ({regionState.party.length}/{PARTY_LIMIT})
               </button>
               <button onClick={() => setView('bag')} className="ar-side mb-1.5">
-                Bag ({bagEntries(region.bag).reduce((s, e) => s + e.count, 0)})
+                Bag ({bagEntries(regionState.bag).reduce((s, e) => s + e.count, 0)})
               </button>
-              <Link href="/journey/kanto/map" className="ar-side block text-center">Travel</Link>
+              <Link href={`/journey/${rid}/map`} className="ar-side block text-center">Travel</Link>
             </div>
 
             <div className="ar-panel p-3">
               <p className="ar-pixel text-[9px] text-slate-400 mb-2">DEX</p>
               <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Seen</span><span className="text-slate-200">{region.seen.length}</span>
+                <span>Seen</span><span className="text-slate-200">{regionState.seen.length}</span>
               </div>
               <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Caught</span><span className="text-slate-200">{region.caught.length}</span>
+                <span>Caught</span><span className="text-slate-200">{regionState.caught.length}</span>
               </div>
               <div className="flex justify-between text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-800">
-                <span>Badges</span><span className="text-yellow-300">{region.completedGyms.length}/8</span>
+                <span>{region.rewardNoun}</span><span className="text-yellow-300">{regionState.clearedChallenges.length}/{region.challenges.length}</span>
               </div>
             </div>
           </div>
@@ -474,11 +480,11 @@ export default function AreaPage() {
       {view === 'party' && (
         <Overlay title="PARTY" onClose={() => setView('area')}>
           <PartyPanel
-            region={region}
-            onBox={(i) => { movePartyToBox(user.username, 'kanto', i); refresh(); }}
-            onRetrieve={(i) => { moveBoxToParty(user.username, 'kanto', i); refresh(); }}
+            save={regionState}
+            onBox={(i) => { movePartyToBox(user.username, rid, i); refresh(); }}
+            onRetrieve={(i) => { moveBoxToParty(user.username, rid, i); refresh(); }}
             onLead={(i) => {
-              setLead(user.username, 'kanto', i);
+              setLead(user.username, rid, i);
               const r = refresh();
               if (r) flashToast(`${r.party[0]?.name} now leads`);
             }}
@@ -488,10 +494,10 @@ export default function AreaPage() {
 
       {view === 'keep-six' && overflowCatch && (
         <KeepSixChooser
-          party={region.party}
+          party={regionState.party}
           newcomer={overflowCatch}
           onConfirm={(keep, toBox) => {
-            commitParty(user.username, 'kanto', keep, toBox);
+            commitParty(user.username, rid, keep, toBox);
             const boxed = toBox.map((m) => m.name).join(', ');
             push(boxed ? `${boxed} sent to the PC.` : 'Party unchanged.');
             setOverflowCatch(null);
@@ -503,11 +509,11 @@ export default function AreaPage() {
 
       {view === 'bag' && (
         <Overlay title="BAG" onClose={() => setView('area')}>
-          {bagEntries(region.bag).length === 0 ? (
+          {bagEntries(regionState.bag).length === 0 ? (
             <p className="text-[11px] text-slate-500">Your bag is empty.</p>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {bagEntries(region.bag).map(({ item, count }) => (
+              {bagEntries(regionState.bag).map(({ item, count }) => (
                 <div key={item.id} className="ar-row px-3 py-2">
                   <div className="flex justify-between items-baseline gap-2">
                     <span className="text-[11px] font-bold">{item.name}</span>
@@ -522,11 +528,11 @@ export default function AreaPage() {
       )}
 
       {view === 'mart' && (
-        <Overlay title={`POKÉ MART · ₽${region.money}`} onClose={() => setView('area')}>
+        <Overlay title={`POKÉ MART · ₽${regionState.money}`} onClose={() => setView('area')}>
           <div className="flex flex-col gap-1.5">
             {MART_STOCK.map((itemId) => {
               const item = ITEMS[itemId];
-              const afford = region.money >= item.price;
+              const afford = regionState.money >= item.price;
               return (
                 <button
                   key={itemId}
@@ -555,9 +561,9 @@ export default function AreaPage() {
 // ============================================================
 
 function PartyPanel({
-  region, onBox, onRetrieve, onLead,
+  save, onBox, onRetrieve, onLead,
 }: {
-  region: JourneyRegionState;
+  save: JourneyRegionState;
   onBox: (i: number) => void;
   onRetrieve: (i: number) => void;
   onLead: (i: number) => void;
@@ -569,7 +575,7 @@ function PartyPanel({
         Pokémon to the front.
       </p>
       <div className="flex flex-col gap-1.5 mb-4">
-        {region.party.map((p, i) => {
+        {save.party.map((p, i) => {
           const pct = Math.max(0, (p.currentHp / p.maxHp) * 100);
           const isLead = i === 0;
           return (
@@ -606,7 +612,7 @@ function PartyPanel({
                     Lead
                   </button>
                 )}
-                {region.party.length > 1 && (
+                {save.party.length > 1 && (
                   <button onClick={() => onBox(i)} className="ar-tag">Box</button>
                 )}
               </div>
@@ -615,16 +621,16 @@ function PartyPanel({
         })}
       </div>
 
-      <p className="ar-pixel text-[9px] text-slate-400 mb-2">BOX ({region.box.length})</p>
-      {region.box.length === 0 ? (
+      <p className="ar-pixel text-[9px] text-slate-400 mb-2">BOX ({save.box.length})</p>
+      {save.box.length === 0 ? (
         <p className="text-[10px] text-slate-600">Nothing stored.</p>
       ) : (
         <div className="grid grid-cols-2 gap-1.5">
-          {region.box.map((p, i) => (
+          {save.box.map((p, i) => (
             <button
               key={i}
               onClick={() => onRetrieve(i)}
-              disabled={region.party.length >= PARTY_LIMIT}
+              disabled={save.party.length >= PARTY_LIMIT}
               className="ar-row px-2 py-1.5 flex items-center gap-2 disabled:opacity-40"
             >
               <img src={frontSprite(p.pokemonId)} alt={p.name} className="w-8 h-8 object-contain ar-pixelated shrink-0" />
@@ -746,8 +752,8 @@ function Overlay({
 }
 
 function Status({
-  title, body, action,
-}: { title: string; body: string; action?: { href: string; label: string } }) {
+  rid, title, body, action,
+}: { rid?: string; title: string; body: string; action?: { href: string; label: string } }) {
   return (
     <div className="ar-root min-h-screen flex items-center justify-center p-6">
       <div className="ar-panel max-w-sm w-full p-6 text-center">
@@ -755,7 +761,7 @@ function Status({
         <p className="text-[11px] text-slate-400 mb-5">{body}</p>
         <div className="flex gap-2 justify-center flex-wrap">
           {action && <Link href={action.href} className="ar-btn ar-btn-yellow">{action.label}</Link>}
-          <Link href="/journey/kanto/map" className="ar-btn ar-btn-grey">Map</Link>
+          <Link href={rid ? `/journey/${rid}/map` : '/journey'} className="ar-btn ar-btn-grey">Map</Link>
         </div>
       </div>
       <AreaStyles />
@@ -776,7 +782,7 @@ function randomQuiet() {
 
 function AreaStyles() {
   return (
-    <style jsx global>{`
+    <GlobalStyle css={`
       @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
       :root {
         --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -956,6 +962,6 @@ function AreaStyles() {
           transition-duration: 0.01ms !important;
         }
       }
-    `}</style>
+    `} />
   );
 }

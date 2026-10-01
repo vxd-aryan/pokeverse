@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { type JourneyPokemon } from '../data/kanto';
-import { bagEntries, getItem } from '../data/kanto-items';
+import { type JourneyPokemon } from '../data/types';
+import { bagEntries, getItem } from '../data/items';
 import { attemptCatch, applyXp, xpFromDefeat, xpProgress } from '../lib/wild';
 import { relevel, evolveInto, frontSprite, backSprite } from '../lib/fetchMon';
 import { resolveJourneyTurn, executeMove, chooseOpponentMove } from '../lib/battleEngine';
 import { TrainerSprite, SendOutScene } from './TrainerSprite';
+import { GlobalStyle } from '../components/JourneyShell';
 
 // ============================================================
 // BATTLE SCENE
@@ -671,7 +672,7 @@ function Cmd({
 
 function BattleStyles() {
   return (
-    <style jsx global>{`
+    <GlobalStyle css={`
       @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
       :root {
         --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -805,6 +806,6 @@ function BattleStyles() {
           transition-duration: 0.01ms !important;
         }
       }
-    `}</style>
+    `} />
   );
 }

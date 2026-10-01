@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { GlobalStyle } from '../components/JourneyShell';
 
 // ============================================================
 // TRAINER SPRITE
@@ -149,7 +150,7 @@ export function SendOutScene({
       {/* Flash as each ball opens */}
       {stage === 'leave' && <span className="sendout-flash" />}
 
-      <style jsx>{`
+      <GlobalStyle css={`
         .sendout-op,
         .sendout-pl {
           transition: transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
@@ -211,7 +212,7 @@ export function SendOutScene({
             transition: none !important;
           }
         }
-      `}</style>
+      `} />
     </div>
   );
 }

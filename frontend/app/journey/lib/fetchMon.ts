@@ -10,11 +10,9 @@
 // encounter instant rather than waiting on four move lookups.
 // ============================================================
 
-import {
-  buildMoveset,
-  getEvolutionStage,
-  type JourneyPokemon,
-} from '../data/kanto';
+import type { JourneyPokemon } from '../data/types';
+import { buildMoveset } from '../data/moves';
+import { getEvolutionStage } from '../data/evolution';
 import { computeHp, computeStat } from './wild';
 
 const POKEAPI = 'https://pokeapi.co/api/v2/pokemon';

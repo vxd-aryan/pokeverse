@@ -1,39 +1,18 @@
 // ============================================================
-// JOURNEY — WILD ENCOUNTERS & FIELD ITEMS
+// KANTO — WILD ENCOUNTERS
 // ============================================================
-// Which Pokémon appear where, following FireRed/LeafGreen's
+// Which Pokémon appear where, following FireRed / LeafGreen's
 // route tables. Species lists and level ranges are canon-shaped;
-// the rarity weights are simplified into three bands rather than
-// copying each slot's exact percentage, which keeps the tables
-// readable without changing how an area feels.
+// rarity is simplified into three bands rather than copying each
+// slot's exact percentage, which keeps the tables readable
+// without changing how an area feels.
 //
-// Towns have no encounters — you explore them for items, shops
-// and the Pokémon Center instead.
+// Towns have no encounters — you explore them for shops and the
+// Pokémon Centre instead.
 // ============================================================
 
-export interface WildSlot {
-  pokemonId: number;
-  name: string;
-  minLevel: number;
-  maxLevel: number;
-  /** Relative weight. Higher means more common. */
-  weight: number;
-}
-
-export interface AreaEncounters {
-  /** Chance per step that anything appears at all, 0-1. */
-  encounterRate: number;
-  slots: WildSlot[];
-  /** Item ids that can be found while exploring here. */
-  itemFinds?: string[];
-}
-
-// Rarity bands — use these rather than ad-hoc numbers so the
-// tables stay consistent with each other.
-const COMMON = 10;
-const UNCOMMON = 5;
-const RARE = 2;
-const VERY_RARE = 1;
+import type { AreaEncounters } from '../../types';
+import { COMMON, UNCOMMON, RARE, VERY_RARE } from '../../types';
 
 export const KANTO_ENCOUNTERS: Record<string, AreaEncounters> = {
   'route-1': {
@@ -271,43 +250,3 @@ export const KANTO_ENCOUNTERS: Record<string, AreaEncounters> = {
     itemFinds: ['ultra-ball', 'hyper-potion'],
   },
 };
-
-// Towns and cities: no wild Pokémon, but services.
-export const TOWN_NODES = [
-  'pallet', 'viridian', 'pewter', 'cerulean', 'vermilion',
-  'lavender', 'celadon', 'fuchsia', 'saffron', 'cinnabar',
-];
-
-export function isTown(nodeId: string): boolean {
-  return TOWN_NODES.includes(nodeId);
-}
-
-export function encountersFor(nodeId: string): AreaEncounters | undefined {
-  return KANTO_ENCOUNTERS[nodeId];
-}
-
-/** Picks one wild slot using the rarity weights. */
-export function rollWildSlot(area: AreaEncounters, rng = Math.random): WildSlot | null {
-  if (!area.slots.length) return null;
-  const total = area.slots.reduce((s, x) => s + x.weight, 0);
-  let roll = rng() * total;
-  for (const slot of area.slots) {
-    roll -= slot.weight;
-    if (roll <= 0) return slot;
-  }
-  return area.slots[area.slots.length - 1];
-}
-
-export function rollLevel(slot: WildSlot, rng = Math.random): number {
-  return slot.minLevel + Math.floor(rng() * (slot.maxLevel - slot.minLevel + 1));
-}
-
-/** Chance per step of finding an item rather than a Pokémon. */
-export const ITEM_FIND_CHANCE = 0.08;
-
-/** Rough catch rate by how far evolved a species is. */
-export function catchRateFor(evolutionStage: number): number {
-  if (evolutionStage >= 3) return 45;
-  if (evolutionStage === 2) return 90;
-  return 190;
-}

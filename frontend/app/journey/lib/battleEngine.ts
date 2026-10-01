@@ -15,7 +15,7 @@
 // copies they intend to keep.
 // ============================================================
 
-import type { JourneyMove, JourneyPokemon, StatusCondition } from '../data/kanto';
+import type { JourneyMove, JourneyPokemon, StatusCondition } from '../data/types';
 
 // --- Type chart ---------------------------------------------
 // Attacker type -> defender type -> multiplier. Anything absent

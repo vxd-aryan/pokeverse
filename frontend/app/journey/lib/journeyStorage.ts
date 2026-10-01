@@ -5,16 +5,16 @@
 // for everything else you catch, a bag, money, badges and where
 // you currently are.
 //
-// v1 saves (the old "pick six from a roster" format) can't be
-// translated — there was no starter, no bag and no caught
-// history — so they're discarded on first load of this version
-// and the player starts fresh.
+// Saves below the current version are discarded rather than
+// migrated: each bump so far changed the shape too deeply to
+// translate (v1 had no starter or bag; v2 named challenges
+// "gyms" and assumed Kanto). A fresh start is honest about that.
 // ============================================================
 
-import type { JourneyPokemon } from '../data/kanto';
-import { STARTING_BAG, STARTING_MONEY, MAX_PER_ITEM } from '../data/kanto-items';
+import type { JourneyPokemon, Challenge } from '../data/types';
+import { STARTING_BAG, STARTING_MONEY, MAX_PER_ITEM } from '../data/items';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const STORAGE_KEY = 'pokeverse_journey_state';
 
 export const PARTY_LIMIT = 6;
@@ -24,7 +24,7 @@ export const BOX_LIMIT = 30;
 export interface RegionStats {
   wildBattles: number;
   trainerBattles: number;
-  gymBattles: number;
+  challengeBattles: number;
   battlesLost: number;
   pokemonCaught: number;
   stepsTaken: number;
@@ -43,7 +43,7 @@ export interface JourneyRegionState {
   currentNode: string;
   /** Areas the player has set foot in — gates fast travel. */
   visitedNodes: string[];
-  completedGyms: string[];
+  clearedChallenges: string[];
   defeatedTrainers: string[];
   /** Dex progress: species seen in battle, and species owned. */
   seen: number[];
@@ -64,7 +64,7 @@ function emptyStats(): RegionStats {
   return {
     wildBattles: 0,
     trainerBattles: 0,
-    gymBattles: 0,
+    challengeBattles: 0,
     battlesLost: 0,
     pokemonCaught: 0,
     stepsTaken: 0,
@@ -73,16 +73,16 @@ function emptyStats(): RegionStats {
   };
 }
 
-export function emptyRegionState(): JourneyRegionState {
+export function emptyRegionState(startNode = ''): JourneyRegionState {
   return {
     starterId: null,
     party: [],
     box: [],
     bag: { ...STARTING_BAG },
     money: STARTING_MONEY,
-    currentNode: 'pallet',
-    visitedNodes: ['pallet'],
-    completedGyms: [],
+    currentNode: startNode,
+    visitedNodes: startNode ? [startNode] : [],
+    clearedChallenges: [],
     defeatedTrainers: [],
     seen: [],
     caught: [],
@@ -131,10 +131,14 @@ export function getJourneyState(username: string): JourneyState {
   return existing as JourneyState;
 }
 
-export function getRegionState(username: string, regionId: string): JourneyRegionState {
+export function getRegionState(
+  username: string,
+  regionId: string,
+  startNode = ''
+): JourneyRegionState {
   const state = getJourneyState(username);
   if (!state.regions[regionId]) {
-    state.regions[regionId] = emptyRegionState();
+    state.regions[regionId] = emptyRegionState(startNode);
   }
   const r = state.regions[regionId];
 
@@ -144,12 +148,12 @@ export function getRegionState(username: string, regionId: string): JourneyRegio
   if (!Array.isArray(r.box)) r.box = [];
   if (!r.bag || typeof r.bag !== 'object') r.bag = { ...STARTING_BAG };
   if (typeof r.money !== 'number') r.money = STARTING_MONEY;
-  if (!Array.isArray(r.visitedNodes)) r.visitedNodes = ['pallet'];
-  if (!Array.isArray(r.completedGyms)) r.completedGyms = [];
+  if (!Array.isArray(r.visitedNodes)) r.visitedNodes = startNode ? [startNode] : [];
+  if (!Array.isArray(r.clearedChallenges)) r.clearedChallenges = [];
   if (!Array.isArray(r.defeatedTrainers)) r.defeatedTrainers = [];
   if (!Array.isArray(r.seen)) r.seen = [];
   if (!Array.isArray(r.caught)) r.caught = [];
-  if (!r.currentNode) r.currentNode = 'pallet';
+  if (!r.currentNode) r.currentNode = startNode;
   if (!r.stats) r.stats = emptyStats();
 
   return r;
@@ -391,7 +395,11 @@ export function buyItem(
 }
 
 /** Losing a battle costs money, as in the real games. */
-export function payoutOnLoss(username: string, regionId: string): number {
+export function payoutOnLoss(
+  username: string,
+  regionId: string,
+  townIds: string[]
+): number {
   const region = getRegionState(username, regionId);
   const lost = Math.floor(region.money * 0.25);
   updateRegion(username, regionId, (r) => {
@@ -399,18 +407,21 @@ export function payoutOnLoss(username: string, regionId: string): number {
     r.stats.battlesLost += 1;
     r.party = r.party.map((p) => ({ ...p, currentHp: p.maxHp, status: null }));
     // Blacking out sends you back to the last town you were in.
-    r.currentNode = lastTownVisited(r);
+    r.currentNode = lastTownVisited(r, townIds);
   });
   return lost;
 }
 
-function lastTownVisited(r: JourneyRegionState): string {
-  const towns = ['pallet', 'viridian', 'pewter', 'cerulean', 'vermilion',
-                 'lavender', 'celadon', 'fuchsia', 'saffron', 'cinnabar'];
+/**
+ * Blacking out sends the player to the last town they set foot
+ * in. The caller passes the region's town ids, so this stays
+ * region-neutral.
+ */
+function lastTownVisited(r: JourneyRegionState, townIds: string[]): string {
   for (let i = r.visitedNodes.length - 1; i >= 0; i--) {
-    if (towns.includes(r.visitedNodes[i])) return r.visitedNodes[i];
+    if (townIds.includes(r.visitedNodes[i])) return r.visitedNodes[i];
   }
-  return 'pallet';
+  return townIds[0] ?? r.visitedNodes[0] ?? '';
 }
 
 // --- Travel ------------------------------------------------
@@ -430,10 +441,10 @@ export function countStep(username: string, regionId: string) {
 
 // --- Battles -----------------------------------------------
 
-export function markGymComplete(username: string, regionId: string, gymId: string) {
+export function markChallengeComplete(username: string, regionId: string, challengeId: string) {
   return updateRegion(username, regionId, (r) => {
-    if (!r.completedGyms.includes(gymId)) r.completedGyms.push(gymId);
-    r.stats.gymBattles += 1;
+    if (!r.clearedChallenges.includes(challengeId)) r.clearedChallenges.push(challengeId);
+    r.stats.challengeBattles += 1;
     r.party = r.party.map((p) => ({ ...p, currentHp: p.maxHp, status: null }));
   });
 }
@@ -469,57 +480,58 @@ export function resetRegion(username: string, regionId: string) {
 // --- Progress helpers --------------------------------------
 
 export interface JourneyObjective {
-  kind: 'pick-starter' | 'defeat-gym' | 'region-complete';
+  kind: 'pick-starter' | 'defeat-challenge' | 'region-complete';
   text: string;
-  gymId?: string;
+  challengeId?: string;
 }
 
 export function getNextObjective(
   region: JourneyRegionState,
-  gyms: { id: string; name: string; gymName: string }[]
+  challenges: { id: string; name: string; venue: string }[]
 ): JourneyObjective {
   if (!hasStarted(region)) {
     return { kind: 'pick-starter', text: 'Choose your first partner from Professor Oak' };
   }
-  const next = gyms.find((g) => !region.completedGyms.includes(g.id));
+  const next = challenges.find((g) => !region.clearedChallenges.includes(g.id));
   if (!next) return { kind: 'region-complete', text: 'All badges earned — region complete!' };
-  return { kind: 'defeat-gym', text: `Defeat ${next.name}`, gymId: next.id };
+  return { kind: 'defeat-challenge', text: `Defeat ${next.name}`, challengeId: next.id };
 }
 
-export function isGymAvailable(
+export function isChallengeAvailable(
   region: JourneyRegionState,
-  gyms: { id: string; order: number }[],
-  gymId: string
+  challenges: { id: string; order: number }[],
+  challengeId: string
 ): boolean {
-  const gym = gyms.find((g) => g.id === gymId);
-  if (!gym) return false;
-  if (region.completedGyms.includes(gymId)) return false;
-  return gyms.filter((g) => g.order < gym.order).every((g) => region.completedGyms.includes(g.id));
+  const challenge = challenges.find((g) => g.id === challengeId);
+  if (!challenge) return false;
+  if (region.clearedChallenges.includes(challengeId)) return false;
+  return challenges.filter((g) => g.order < challenge.order).every((g) => region.clearedChallenges.includes(g.id));
 }
 
-export type GymUiState = 'locked' | 'available' | 'in-progress' | 'completed';
+export type ChallengeUiState = 'locked' | 'available' | 'in-progress' | 'completed';
 
-export function getGymUiState(
+export function getChallengeUiState(
   region: JourneyRegionState,
-  gyms: { id: string; order: number }[],
-  gymId: string
-): GymUiState {
-  if (region.completedGyms.includes(gymId)) return 'completed';
-  if (!isGymAvailable(region, gyms, gymId)) return 'locked';
+  challenges: { id: string; order: number }[],
+  challengeId: string
+): ChallengeUiState {
+  if (region.clearedChallenges.includes(challengeId)) return 'completed';
+  if (!isChallengeAvailable(region, challenges, challengeId)) return 'locked';
   const damaged = region.party.some((p) => p.currentHp < p.maxHp);
   return damaged ? 'in-progress' : 'available';
 }
 
 // --- Regions -----------------------------------------------
 
-export const REGION_ORDER = [
-  'kanto', 'johto', 'hoenn', 'sinnoh', 'unova', 'kalos', 'alola', 'galar', 'paldea',
-];
-export const IMPLEMENTED_REGIONS = ['kanto'];
-
-export function isRegionUnlocked(username: string, regionId: string): boolean {
-  const idx = REGION_ORDER.indexOf(regionId);
-  if (idx === 0) return true;
-  if (idx < 0) return false;
-  return getRegionState(username, REGION_ORDER[idx - 1]).regionComplete;
+/**
+ * A region opens once the previous one is complete. The caller
+ * supplies the previous region's id so this file doesn't need to
+ * know the registry.
+ */
+export function isRegionUnlocked(
+  username: string,
+  previousRegionId: string | null
+): boolean {
+  if (!previousRegionId) return true;
+  return getRegionState(username, previousRegionId).regionComplete;
 }

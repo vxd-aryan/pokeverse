@@ -7,16 +7,37 @@
 // Pure functions where possible, so the pages stay about UI.
 // ============================================================
 
-import {
-  encountersFor,
-  rollWildSlot,
-  rollLevel,
-  catchRateFor,
-  ITEM_FIND_CHANCE,
-  type WildSlot,
-} from '../data/kanto-encounters';
-import { getEvolutionStage, resolveEvolution, type JourneyPokemon } from '../data/kanto';
-import { getItem } from '../data/kanto-items';
+import type { AreaEncounters, JourneyPokemon, WildSlot } from '../data/types';
+import { getEvolutionStage, resolveEvolution } from '../data/evolution';
+import { getItem } from '../data/items';
+
+// --- Encounter rolls ----------------------------------------
+
+/** Picks one wild slot using the rarity weights. */
+export function rollWildSlot(area: AreaEncounters, rng = Math.random): WildSlot | null {
+  if (!area.slots.length) return null;
+  const total = area.slots.reduce((s, x) => s + x.weight, 0);
+  let roll = rng() * total;
+  for (const slot of area.slots) {
+    roll -= slot.weight;
+    if (roll <= 0) return slot;
+  }
+  return area.slots[area.slots.length - 1];
+}
+
+export function rollLevel(slot: WildSlot, rng = Math.random): number {
+  return slot.minLevel + Math.floor(rng() * (slot.maxLevel - slot.minLevel + 1));
+}
+
+/** Chance per step of finding an item rather than a Pokémon. */
+export const ITEM_FIND_CHANCE = 0.08;
+
+/** Rough catch rate by how far evolved a species is. */
+export function catchRateFor(evolutionStage: number): number {
+  if (evolutionStage >= 3) return 45;
+  if (evolutionStage === 2) return 90;
+  return 190;
+}
 
 // --- Stepping ----------------------------------------------
 
@@ -29,8 +50,7 @@ export type StepResult =
  * One step through an area. Item finds are checked first and are
  * rarer, so a step is usually either a Pokémon or quiet grass.
  */
-export function takeStep(nodeId: string, rng = Math.random): StepResult {
-  const area = encountersFor(nodeId);
+export function takeStep(area: AreaEncounters | undefined, rng = Math.random): StepResult {
   if (!area) return { kind: 'nothing' };
 
   if (area.itemFinds?.length && rng() < ITEM_FIND_CHANCE) {

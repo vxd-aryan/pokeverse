@@ -5,23 +5,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/store/userStore';
 import {
-  REGION_ORDER,
-  IMPLEMENTED_REGIONS,
-  isRegionUnlocked,
-  getRegionState,
-  hasStarted,
-} from './lib/journeyStorage';
-import { KANTO_GYMS } from './data/kanto';
+  REGION_ORDER, getRegion, regionName, isImplemented, previousRegionId,
+} from './data/regions';
+import { getRegionState, hasStarted, isRegionUnlocked } from './lib/journeyStorage';
+import { journeyStyles, GlobalStyle } from './components/JourneyShell';
 
-const REGION_LABELS: Record<string, string> = {
-  kanto: 'Kanto', johto: 'Johto', hoenn: 'Hoenn', sinnoh: 'Sinnoh',
-  unova: 'Unova', kalos: 'Kalos', alola: 'Alola', galar: 'Galar', paldea: 'Paldea',
-};
-
-/** Gym count per region, for the hub cards. Only Kanto is real so far. */
-const REGION_GYM_COUNT: Record<string, number> = {
-  kanto: KANTO_GYMS.length,
-};
+// ============================================================
+// REGION HUB
+// ============================================================
+// Lists every region in canonical order. Built ones are playable;
+// the rest show as coming soon, so the shape of the whole Journey
+// is visible from the first visit.
+// ============================================================
 
 export default function JourneyHubPage() {
   const { user } = useUserStore() as any;
@@ -39,69 +34,80 @@ export default function JourneyHubPage() {
   if (!mounted || !user) return null;
 
   return (
-    <div className="journey-root min-h-screen p-4 md:p-10 text-slate-200">
+    <div className="jr-root min-h-screen p-4 md:p-10">
       <div className="max-w-4xl mx-auto">
-        <h1 className="pixel-font text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
-        <p className="text-[11px] text-slate-400 mb-8 max-w-lg">
+        <h1 className="jr-pixel text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
+        <p className="text-[11px] text-slate-400 mb-8 max-w-lg leading-relaxed">
           Pick a starter, explore the routes, catch your own team and earn every badge.
-          Kanto follows FireRed / LeafGreen.
+          Each region is its own run, with its own starters, leaders and wild Pokémon.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {REGION_ORDER.map((regionId) => {
-            const implemented = IMPLEMENTED_REGIONS.includes(regionId);
-            const unlocked = implemented && isRegionUnlocked(user.username, regionId);
-            const state = implemented ? getRegionState(user.username, regionId) : null;
+          {REGION_ORDER.map((rid, i) => {
+            const built = isImplemented(rid);
+            const region = getRegion(rid);
+            const unlocked = built && isRegionUnlocked(user.username, previousRegionId(rid));
+            const state = built ? getRegionState(user.username, rid, region!.map.nodes[0]?.id) : null;
             const complete = state?.regionComplete;
-            const gymCount = REGION_GYM_COUNT[regionId] ?? 8;
-            const gymsDone = state?.completedGyms.length ?? 0;
-            const started = !!state && hasStarted(state);
+            const total = region?.challenges.length ?? 8;
+            const cleared = state?.clearedChallenges.length ?? 0;
+            const started = state ? hasStarted(state) : false;
 
             const href = !unlocked
               ? '#'
               : complete
-              ? `/journey/${regionId}/complete`
+              ? `/journey/${rid}/complete`
               : started
-              ? `/journey/${regionId}/map`
-              : `/journey/${regionId}/starter`;
+              ? `/journey/${rid}/map`
+              : `/journey/${rid}/starter`;
 
             const card = (
               <div
-                className={`region-card p-3 h-32 flex flex-col justify-between border-2 ${
-                  !unlocked
+                className={`hub-card p-3 h-36 flex flex-col justify-between border-2 jr-stagger ${
+                  !built
+                    ? 'border-slate-800 bg-slate-900/40 opacity-50'
+                    : !unlocked
                     ? 'border-slate-800 bg-slate-900/50 opacity-60'
                     : complete
                     ? 'border-green-500 bg-green-900/20'
                     : 'border-yellow-500 bg-slate-900'
                 }`}
+                style={{ animationDelay: `${i * 60}ms` }}
               >
-                <div className="flex items-start justify-between">
-                  <span className="font-black uppercase tracking-wide text-xs">
-                    {REGION_LABELS[regionId]}
-                  </span>
-                  <span className="text-base leading-none">
-                    {!unlocked ? '🔒' : complete ? '🏆' : '🗺️'}
-                  </span>
+                <div>
+                  <div className="flex items-start justify-between">
+                    <span className="font-black uppercase tracking-wide text-xs">
+                      {regionName(rid)}
+                    </span>
+                    <span className="text-base leading-none">
+                      {!built ? '🔧' : !unlocked ? '🔒' : complete ? '🏆' : '🗺️'}
+                    </span>
+                  </div>
+                  {region && (
+                    <p className="text-[8px] text-slate-500 mt-1 leading-snug line-clamp-2">
+                      {region.tagline}
+                    </p>
+                  )}
                 </div>
 
-                {implemented ? (
+                {built ? (
                   <div>
                     {unlocked && (
                       <div className="h-1.5 bg-slate-950 border border-slate-700 overflow-hidden mb-1.5">
                         <div
-                          className={`h-full ${complete ? 'bg-green-500' : 'bg-yellow-400'}`}
-                          style={{ width: `${(gymsDone / gymCount) * 100}%` }}
+                          className={`h-full jr-fill ${complete ? 'bg-green-500' : 'bg-yellow-400'}`}
+                          style={{ width: `${(cleared / total) * 100}%` }}
                         />
                       </div>
                     )}
                     <p className="text-[9px] text-slate-400 uppercase tracking-wide">
                       {complete
-                        ? `All ${gymCount} badges earned`
+                        ? `All ${total} earned`
                         : !unlocked
                         ? 'Locked'
                         : !started
                         ? 'Choose your starter'
-                        : `Badges ${gymsDone}/${gymCount}`}
+                        : `${region!.rewardNoun} ${cleared}/${total}`}
                     </p>
                   </div>
                 ) : (
@@ -113,31 +119,28 @@ export default function JourneyHubPage() {
             );
 
             return unlocked ? (
-              <Link key={regionId} href={href}>{card}</Link>
+              <Link key={rid} href={href}>{card}</Link>
             ) : (
-              <div key={regionId} className="cursor-not-allowed">{card}</div>
+              <div key={rid} className="cursor-not-allowed">{card}</div>
             );
           })}
         </div>
       </div>
 
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        .pixel-font { font-family: 'Press Start 2P', monospace; line-height: 1.7; }
-        .journey-root {
-          background: #0b1120;
-          background-image:
-            linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-          background-size: 16px 16px;
-          font-family: ui-monospace, monospace;
-        }
-        .region-card {
+      <GlobalStyle css={journeyStyles} />
+      <GlobalStyle css={`
+        .hub-card {
           box-shadow: 0 4px 0 rgba(0,0,0,0.4);
-          transition: transform 0.12s ease;
+          transition: transform var(--t-fast) var(--ease);
         }
-        a:hover .region-card { transform: translateY(-3px); }
-      `}</style>
+        a:hover .hub-card { transform: translateY(-3px); }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `} />
     </div>
   );
 }

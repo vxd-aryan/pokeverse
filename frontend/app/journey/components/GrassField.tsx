@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PLAYER_SPRITE_KEY, TrainerSprite } from './TrainerSprite';
+import { GlobalStyle } from '../components/JourneyShell';
 
 // ============================================================
 // GRASS FIELD
@@ -173,7 +174,7 @@ const TERRAIN: Record<FieldTerrain, { sky: string; ground: string; tuft: string;
 
 function GrassStyles() {
   return (
-    <style jsx global>{`
+    <GlobalStyle css={`
       :root {
         --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
         --t-fast: 140ms;
@@ -327,6 +328,6 @@ function GrassStyles() {
         .gf-moving .gf-tufts, .gf-moving .gf-far, .gf-tuft,
         .gf-walk .gf-sprite, .gf-walking { animation: none !important; }
       }
-    `}</style>
+    `} />
   );
 }

@@ -1,12 +1,13 @@
 // ============================================================
-// JOURNEY — ITEMS & BAG
+// JOURNEY — ITEMS & BAG (shared by every region)
 // ============================================================
 // A deliberately small item set. Every item here does something
 // the player actually needs during a Kanto run, and nothing is
 // included just for completeness — a short list keeps the bag
 // readable on a phone and keeps the battle menu one screen.
 //
-// Prices follow FireRed. Effects are Journey balancing.
+// Prices follow the mainline games. Effects are Journey
+// balancing, and the same set serves every region.
 // ============================================================
 
 export type ItemCategory = 'ball' | 'medicine' | 'status' | 'revive' | 'key';

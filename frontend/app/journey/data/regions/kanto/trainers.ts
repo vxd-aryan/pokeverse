@@ -1,50 +1,16 @@
 // ============================================================
-// JOURNEY — KANTO ROUTE TRAINERS
+// KANTO — ROUTE TRAINERS
 // ============================================================
-// The NPC trainers you battle between gyms. Placement follows
-// FireRed / LeafGreen: trainers sit on the routes, forests and
-// caves that actually have them, with their real trainer classes
-// and species. Route 1, Route 2 and Route 5 have no trainers in
-// the real games, so they have none here either.
+// Placement follows FireRed / LeafGreen: trainers sit on the
+// routes, forests and caves that actually have them. Routes 1, 2
+// and 5 have none in the real games, so they have none here.
 //
-// Levels are BALANCING, not canon. Each area's trainers sit a few
-// levels under the player's expected level at that point in the
-// curve, so route battles are a way to top up before a gym rather
-// than a wall of their own.
+// Levels are BALANCING: each area's trainers sit a few levels
+// under the player's expected level at that point, so route
+// battles top you up rather than forming a wall of their own.
 // ============================================================
 
-import type { GymTeamMember } from './kanto';
-
-export type TrainerClass =
-  | 'Bug Catcher'
-  | 'Youngster'
-  | 'Lass'
-  | 'Hiker'
-  | 'Super Nerd'
-  | 'Team Rocket Grunt'
-  | 'Camper'
-  | 'Picnicker'
-  | 'Pokémaniac'
-  | 'Gambler'
-  | 'Fisherman'
-  | 'Bird Keeper'
-  | 'Biker'
-  | 'Swimmer'
-  | 'Juggler'
-  | 'Tamer';
-
-export interface RouteTrainer {
-  id: string;
-  /** Map node this trainer stands on — must match a kanto-map node id. */
-  locationId: string;
-  trainerClass: TrainerClass;
-  name: string;
-  /** Line shown before the battle. */
-  quote: string;
-  /** Line shown on defeat. */
-  defeatQuote: string;
-  team: GymTeamMember[];
-}
+import type { RouteTrainer } from '../../types';
 
 export const KANTO_TRAINERS: RouteTrainer[] = [
   // ---------- Viridian Forest (pre-Brock, player ~Lv12) ----------
@@ -365,64 +331,3 @@ export const KANTO_TRAINERS: RouteTrainer[] = [
     team: [{ pokemonId: 98, name: 'Krabby', level: 46 }, { pokemonId: 99, name: 'Kingler', level: 48 }],
   },
 ];
-
-// ============================================================
-// SPRITES
-// ============================================================
-// Trainer artwork comes from Pokémon Showdown's sprite archive,
-// which carries per-generation variants. FireRed/LeafGreen is
-// Gen 3, so the `-gen3` file is preferred and the plain file is
-// the fallback — see TrainerSprite, which walks that chain and
-// draws a silhouette if neither loads.
-
-export const TRAINER_CLASS_SPRITE: Record<TrainerClass, string> = {
-  'Bug Catcher': 'bugcatcher',
-  'Youngster': 'youngster',
-  'Lass': 'lass',
-  'Hiker': 'hiker',
-  'Super Nerd': 'scientist',
-  'Team Rocket Grunt': 'rocket',
-  'Camper': 'camper',
-  'Picnicker': 'picnicker',
-  'Pokémaniac': 'pokemaniac',
-  'Gambler': 'gambler',
-  'Fisherman': 'fisherman',
-  'Bird Keeper': 'birdkeeper',
-  'Biker': 'biker',
-  'Swimmer': 'swimmer',
-  'Juggler': 'juggler',
-  'Tamer': 'tamer',
-};
-
-export function trainerSpriteKey(t: RouteTrainer): string {
-  return TRAINER_CLASS_SPRITE[t.trainerClass] ?? 'youngster';
-}
-
-// --- Lookups -----------------------------------------------
-
-export const KANTO_TRAINERS_BY_LOCATION: Record<string, RouteTrainer[]> =
-  KANTO_TRAINERS.reduce((acc, t) => {
-    (acc[t.locationId] ||= []).push(t);
-    return acc;
-  }, {} as Record<string, RouteTrainer[]>);
-
-export function getTrainerById(id: string): RouteTrainer | undefined {
-  return KANTO_TRAINERS.find((t) => t.id === id);
-}
-
-export function trainersAt(locationId: string): RouteTrainer[] {
-  return KANTO_TRAINERS_BY_LOCATION[locationId] || [];
-}
-
-/**
- * How far route battles can push the party past the curve. Beating
- * every trainer in an area is worth doing, but can't over-level you
- * into trivialising the next gym.
- */
-export const TRAINER_LEVEL_HEADROOM = 3;
-
-/** Highest level route trainers can raise the party to right now. */
-export function trainerLevelCap(curve: number[], completedGymCount: number): number {
-  const base = curve[Math.min(completedGymCount, curve.length - 1)];
-  return base + TRAINER_LEVEL_HEADROOM;
-}
