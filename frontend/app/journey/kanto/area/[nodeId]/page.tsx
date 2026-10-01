@@ -16,7 +16,7 @@ import { takeStep } from '../../../lib/wild';
 import { buildPokemon, frontSprite, prefetchSpecies } from '../../../lib/fetchMon';
 import {
   getRegionState, hasStarted, travelTo, countStep, addItem, addMoney,
-  addCaught, setParty, healParty, buyItem, countWildBattle, payoutOnLoss,
+  addCaught, setParty, setBag, addSeen, healParty, buyItem, countWildBattle, payoutOnLoss,
   markSeen, markTrainerDefeated, isTrainerDefeated, getGymUiState,
   movePartyToBox, moveBoxToParty, PARTY_LIMIT, setLead,
   commitParty, registerCatch,
@@ -167,15 +167,12 @@ export default function AreaPage() {
   const handleBattleEnd = (outcome: BattleOutcome) => {
     if (!region) return;
 
-    // Party and bag always carry back, whatever happened.
+    // Party, bag and dex all carry back, whatever happened. Each
+    // goes through its own writer — mutating a getRegionState
+    // result does nothing, since that's a fresh parse each call.
     setParty(user.username, 'kanto', outcome.party);
-    getRegionState(user.username, 'kanto');
-    const r = getRegionState(user.username, 'kanto');
-    r.bag = outcome.bag;
-    outcome.seenIds.forEach((sid) => {
-      if (!r.seen.includes(sid)) r.seen.push(sid);
-    });
-    setParty(user.username, 'kanto', outcome.party);
+    setBag(user.username, 'kanto', outcome.bag);
+    addSeen(user.username, 'kanto', outcome.seenIds);
 
     const trainer = battle?.trainerId ? locals.find((t) => t.id === battle.trainerId) : null;
 

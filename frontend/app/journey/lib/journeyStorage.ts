@@ -325,6 +325,28 @@ export function partyIsWiped(region: JourneyRegionState): boolean {
 
 // --- Bag & money -------------------------------------------
 
+/**
+ * Replaces the whole bag — used after a battle, where the battle
+ * scene owned the bag for its duration and hands back what's left.
+ * Note that getRegionState returns a FRESH object parsed from
+ * storage, so mutating one of those does nothing; changes have to
+ * go through a writer like this.
+ */
+export function setBag(username: string, regionId: string, bag: Record<string, number>) {
+  return updateRegion(username, regionId, (r) => {
+    r.bag = { ...bag };
+  });
+}
+
+/** Merges newly-encountered species into the dex. */
+export function addSeen(username: string, regionId: string, ids: number[]) {
+  return updateRegion(username, regionId, (r) => {
+    for (const id of ids) {
+      if (!r.seen.includes(id)) r.seen.push(id);
+    }
+  });
+}
+
 export function addItem(username: string, regionId: string, itemId: string, qty = 1) {
   return updateRegion(username, regionId, (r) => {
     r.bag[itemId] = Math.min(MAX_PER_ITEM, (r.bag[itemId] || 0) + qty);

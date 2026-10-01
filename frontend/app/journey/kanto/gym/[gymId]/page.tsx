@@ -11,7 +11,7 @@ import { trainerPrize } from '../../../data/kanto-items';
 import { buildPokemon, frontSprite } from '../../../lib/fetchMon';
 import {
   getRegionState, hasStarted, isGymAvailable, markGymComplete,
-  markRegionComplete, addMoney, setParty, payoutOnLoss,
+  markRegionComplete, addMoney, setParty, setBag, addSeen, payoutOnLoss,
   type JourneyRegionState,
 } from '../../../lib/journeyStorage';
 
@@ -67,6 +67,8 @@ export default function GymPage() {
   const handleEnd = (outcome: BattleOutcome) => {
     if (!gym || !region) return;
     setParty(user.username, 'kanto', outcome.party);
+    setBag(user.username, 'kanto', outcome.bag);
+    addSeen(user.username, 'kanto', outcome.seenIds);
 
     if (outcome.result === 'win') {
       const top = Math.max(...gym.team.map((m) => m.level));
