@@ -53,6 +53,8 @@ export interface JourneyPokemon {
   evolutionStage?: number;
   /** Experience toward the NEXT level, not a lifetime total. */
   xp?: number;
+  /** Remaining turns of sleep, or turns spent frozen. */
+  statusTurns?: number;
   /** Nickname, if the player gave one on capture. */
   nickname?: string;
   /** Where it came from — shown on the summary screen. */
@@ -362,48 +364,116 @@ export const KANTO_STARTER_ROSTER: { id: number; name: string; types: string[] }
 ];
 
 /**
- * One reliable attacking move per type, plus a Normal fallback.
- * Journey builds each Pokémon's four-move set from its own types
- * rather than fetching learnsets, which keeps team confirmation to
- * six requests instead of several dozen. Balancing, not canon —
- * tune freely.
+ * Two attacking moves per type: one a Pokémon could plausibly know
+ * early, one it grows into. Journey picks by level, because giving
+ * a level-10 Geodude a 75-power Rock Slide makes the first gym a
+ * coin flip rather than a fight.
+ *
+ * Balancing, not canon — tune freely.
  */
-export const TYPE_SIGNATURE_MOVES: Record<string, JourneyMove> = {
-  Normal:   { move_key: 'body-slam',     name: 'Body Slam',     type: 'Normal',   power: 85, damage_class: 'physical' },
-  Fire:     { move_key: 'flamethrower',  name: 'Flamethrower',  type: 'Fire',     power: 90, damage_class: 'special'  },
-  Water:    { move_key: 'surf',          name: 'Surf',          type: 'Water',    power: 90, damage_class: 'special'  },
-  Electric: { move_key: 'thunderbolt',   name: 'Thunderbolt',   type: 'Electric', power: 90, damage_class: 'special'  },
-  Grass:    { move_key: 'razor-leaf',    name: 'Razor Leaf',    type: 'Grass',    power: 55, damage_class: 'physical' },
-  Ice:      { move_key: 'ice-beam',      name: 'Ice Beam',      type: 'Ice',      power: 90, damage_class: 'special'  },
-  Fighting: { move_key: 'brick-break',   name: 'Brick Break',   type: 'Fighting', power: 75, damage_class: 'physical' },
-  Poison:   { move_key: 'sludge-bomb',   name: 'Sludge Bomb',   type: 'Poison',   power: 90, damage_class: 'special'  },
-  Ground:   { move_key: 'earthquake',    name: 'Earthquake',    type: 'Ground',   power: 100, damage_class: 'physical' },
-  Flying:   { move_key: 'wing-attack',   name: 'Wing Attack',   type: 'Flying',   power: 60, damage_class: 'physical' },
-  Psychic:  { move_key: 'psychic',       name: 'Psychic',       type: 'Psychic',  power: 90, damage_class: 'special'  },
-  Bug:      { move_key: 'bug-bite',      name: 'Bug Bite',      type: 'Bug',      power: 60, damage_class: 'physical' },
-  Rock:     { move_key: 'rock-slide',    name: 'Rock Slide',    type: 'Rock',     power: 75, damage_class: 'physical' },
-  Ghost:    { move_key: 'shadow-ball',   name: 'Shadow Ball',   type: 'Ghost',    power: 80, damage_class: 'special'  },
-  Dragon:   { move_key: 'dragon-claw',   name: 'Dragon Claw',   type: 'Dragon',   power: 80, damage_class: 'physical' },
-  Dark:     { move_key: 'crunch',        name: 'Crunch',        type: 'Dark',     power: 80, damage_class: 'physical' },
-  Steel:    { move_key: 'iron-head',     name: 'Iron Head',     type: 'Steel',    power: 80, damage_class: 'physical' },
-  Fairy:    { move_key: 'dazzling-gleam', name: 'Dazzling Gleam', type: 'Fairy',  power: 80, damage_class: 'special'  },
+interface MoveTier {
+  early: JourneyMove;
+  late: JourneyMove;
+}
+
+export const TYPE_MOVE_TIERS: Record<string, MoveTier> = {
+  Normal: {
+    early: { move_key: 'tackle', name: 'Tackle', type: 'Normal', power: 40, damage_class: 'physical' },
+    late:  { move_key: 'body-slam', name: 'Body Slam', type: 'Normal', power: 85, damage_class: 'physical' },
+  },
+  Fire: {
+    early: { move_key: 'ember', name: 'Ember', type: 'Fire', power: 40, damage_class: 'special' },
+    late:  { move_key: 'flamethrower', name: 'Flamethrower', type: 'Fire', power: 90, damage_class: 'special' },
+  },
+  Water: {
+    early: { move_key: 'water-gun', name: 'Water Gun', type: 'Water', power: 40, damage_class: 'special' },
+    late:  { move_key: 'surf', name: 'Surf', type: 'Water', power: 90, damage_class: 'special' },
+  },
+  Electric: {
+    early: { move_key: 'thunder-shock', name: 'Thunder Shock', type: 'Electric', power: 40, damage_class: 'special' },
+    late:  { move_key: 'thunderbolt', name: 'Thunderbolt', type: 'Electric', power: 90, damage_class: 'special' },
+  },
+  Grass: {
+    early: { move_key: 'vine-whip', name: 'Vine Whip', type: 'Grass', power: 45, damage_class: 'physical' },
+    late:  { move_key: 'razor-leaf', name: 'Razor Leaf', type: 'Grass', power: 75, damage_class: 'physical' },
+  },
+  Ice: {
+    early: { move_key: 'powder-snow', name: 'Powder Snow', type: 'Ice', power: 40, damage_class: 'special' },
+    late:  { move_key: 'ice-beam', name: 'Ice Beam', type: 'Ice', power: 90, damage_class: 'special' },
+  },
+  Fighting: {
+    early: { move_key: 'karate-chop', name: 'Karate Chop', type: 'Fighting', power: 50, damage_class: 'physical' },
+    late:  { move_key: 'brick-break', name: 'Brick Break', type: 'Fighting', power: 75, damage_class: 'physical' },
+  },
+  Poison: {
+    early: { move_key: 'acid', name: 'Acid', type: 'Poison', power: 40, damage_class: 'special' },
+    late:  { move_key: 'sludge-bomb', name: 'Sludge Bomb', type: 'Poison', power: 90, damage_class: 'special' },
+  },
+  Ground: {
+    early: { move_key: 'mud-slap', name: 'Mud-Slap', type: 'Ground', power: 40, damage_class: 'special' },
+    late:  { move_key: 'earthquake', name: 'Earthquake', type: 'Ground', power: 100, damage_class: 'physical' },
+  },
+  Flying: {
+    early: { move_key: 'gust', name: 'Gust', type: 'Flying', power: 40, damage_class: 'special' },
+    late:  { move_key: 'wing-attack', name: 'Wing Attack', type: 'Flying', power: 60, damage_class: 'physical' },
+  },
+  Psychic: {
+    early: { move_key: 'confusion', name: 'Confusion', type: 'Psychic', power: 50, damage_class: 'special' },
+    late:  { move_key: 'psychic', name: 'Psychic', type: 'Psychic', power: 90, damage_class: 'special' },
+  },
+  Bug: {
+    early: { move_key: 'bug-bite', name: 'Bug Bite', type: 'Bug', power: 40, damage_class: 'physical' },
+    late:  { move_key: 'x-scissor', name: 'X-Scissor', type: 'Bug', power: 80, damage_class: 'physical' },
+  },
+  Rock: {
+    early: { move_key: 'rock-throw', name: 'Rock Throw', type: 'Rock', power: 50, damage_class: 'physical' },
+    late:  { move_key: 'rock-slide', name: 'Rock Slide', type: 'Rock', power: 75, damage_class: 'physical' },
+  },
+  Ghost: {
+    early: { move_key: 'lick', name: 'Lick', type: 'Ghost', power: 30, damage_class: 'physical' },
+    late:  { move_key: 'shadow-ball', name: 'Shadow Ball', type: 'Ghost', power: 80, damage_class: 'special' },
+  },
+  Dragon: {
+    early: { move_key: 'dragon-breath', name: 'Dragon Breath', type: 'Dragon', power: 60, damage_class: 'special' },
+    late:  { move_key: 'dragon-claw', name: 'Dragon Claw', type: 'Dragon', power: 80, damage_class: 'physical' },
+  },
+  Dark: {
+    early: { move_key: 'bite', name: 'Bite', type: 'Dark', power: 60, damage_class: 'physical' },
+    late:  { move_key: 'crunch', name: 'Crunch', type: 'Dark', power: 80, damage_class: 'physical' },
+  },
+  Steel: {
+    early: { move_key: 'metal-claw', name: 'Metal Claw', type: 'Steel', power: 50, damage_class: 'physical' },
+    late:  { move_key: 'iron-head', name: 'Iron Head', type: 'Steel', power: 80, damage_class: 'physical' },
+  },
+  Fairy: {
+    early: { move_key: 'fairy-wind', name: 'Fairy Wind', type: 'Fairy', power: 40, damage_class: 'special' },
+    late:  { move_key: 'dazzling-gleam', name: 'Dazzling Gleam', type: 'Fairy', power: 80, damage_class: 'special' },
+  },
 };
 
+/** Stronger moves come in from here. */
+export const LATE_MOVE_LEVEL = 26;
+
 export const FILLER_MOVES: JourneyMove[] = [
-  { move_key: 'tackle',     name: 'Tackle',     type: 'Normal', power: 40, damage_class: 'physical' },
+  { move_key: 'tackle', name: 'Tackle', type: 'Normal', power: 40, damage_class: 'physical' },
   { move_key: 'quick-attack', name: 'Quick Attack', type: 'Normal', power: 40, damage_class: 'physical' },
 ];
 
-/** Four moves for a Pokémon, built from its own types. */
-export function buildMoveset(types: string[]): JourneyMove[] {
+/** Four moves for a Pokémon, from its own types and its level. */
+export function buildMoveset(types: string[], level = 5): JourneyMove[] {
+  const pick = (t: string): JourneyMove | undefined => {
+    const tier = TYPE_MOVE_TIERS[t];
+    if (!tier) return undefined;
+    return level >= LATE_MOVE_LEVEL ? tier.late : tier.early;
+  };
+
   const moves: JourneyMove[] = [];
   for (const t of types) {
-    const sig = TYPE_SIGNATURE_MOVES[t];
-    if (sig && !moves.some((m) => m.move_key === sig.move_key)) moves.push(sig);
+    const m = pick(t);
+    if (m && !moves.some((x) => x.move_key === m.move_key)) moves.push(m);
   }
-  if (!moves.some((m) => m.type === 'Normal')) {
-    moves.push(TYPE_SIGNATURE_MOVES.Normal);
-  }
+  const normal = pick('Normal')!;
+  if (!moves.some((m) => m.type === 'Normal')) moves.push(normal);
   for (const f of FILLER_MOVES) {
     if (moves.length >= 4) break;
     if (!moves.some((m) => m.move_key === f.move_key)) moves.push(f);

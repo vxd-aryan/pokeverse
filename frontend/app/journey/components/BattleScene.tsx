@@ -5,7 +5,7 @@ import { type JourneyPokemon } from '../data/kanto';
 import { bagEntries, getItem } from '../data/kanto-items';
 import { attemptCatch, applyXp, xpFromDefeat, xpProgress } from '../lib/wild';
 import { relevel, evolveInto, frontSprite, backSprite } from '../lib/fetchMon';
-import { resolveJourneyTurn } from '../lib/battleEngine';
+import { resolveJourneyTurn, executeMove, chooseOpponentMove } from '../lib/battleEngine';
 import { TrainerSprite, SendOutScene } from './TrainerSprite';
 
 // ============================================================
@@ -172,7 +172,7 @@ export default function BattleScene({
     await wait(400);
 
     if (result.opponentFainted) {
-      say(`${o.name} fainted!`);
+      // The engine already logged the faint — just pause on it.
       await wait(500);
       const grown = await awardXp(o);
 
@@ -197,7 +197,6 @@ export default function BattleScene({
 
     if (result.playerFainted) {
       await flash('player');
-      say(`${p.name} fainted!`);
       const nextMon = nextParty.findIndex((m, i) => i !== activeIdx && m.currentHp > 0);
       if (nextMon === -1) {
         setBusy(false);
@@ -225,8 +224,8 @@ export default function BattleScene({
       const nextParty = [...party];
       const p = { ...nextParty[idx] };
       const o = { ...opponents[oppIdx] };
-      const foeMove = o.moves[Math.floor(Math.random() * o.moves.length)];
-      const result = resolveJourneyTurn(o, foeMove, p);
+      const foeMove = chooseOpponentMove(o, p);
+      const result = executeMove(o, foeMove, p);
       nextParty[idx] = p;
       setParty(nextParty);
       say(...result.logs);
@@ -372,8 +371,8 @@ export default function BattleScene({
     const p = { ...working[activeIdx] };
     if (p.currentHp <= 0) return;
 
-    const foeMove = o.moves[Math.floor(Math.random() * o.moves.length)];
-    const result = resolveJourneyTurn(o, foeMove, p);
+    const foeMove = chooseOpponentMove(o, p);
+    const result = executeMove(o, foeMove, p);
     working[activeIdx] = p;
     setParty(working);
     say(...result.logs);
