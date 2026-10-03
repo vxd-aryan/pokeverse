@@ -143,18 +143,41 @@ def email_from_token(token: str) -> Optional[str]:
 
 
 def find_user_by_email(db: Session, email: str) -> Optional["models.User"]:
-    """Case-insensitive email lookup.
+    """Look up an account by email, exact match winning over case-folded.
 
-    New rows are normalised to lowercase by the schemas, but rows
-    written before that could be any case. Comparing with lower() on
-    both sides means an old "Jp@Example.com" account is still
-    reachable instead of silently becoming unreachable.
+    Two rules, in order:
+
+    1. An exact, byte-for-byte match on the address as stored. This
+       matters because rows written before emails were normalised can
+       differ only in capitalisation - "vedant@gmail.com" and
+       "Vedant@gmail.com" were two separate accounts under the old
+       exact-match login, each with its own password and progress.
+    2. Failing that, a case-insensitive match, ordered by id so the
+       result is at least deterministic.
+
+    A plain case-insensitive lookup is wrong on its own: it matches
+    both of those rows, and without an ORDER BY the database is free
+    to return either one. The effect is that the older account becomes
+    unreachable at random - its owner types the right password and is
+    told it is wrong, because the row being checked is the other
+    person's.
+
+    Normalising emails going forward is still right; silently merging
+    accounts that already exist is not.
     """
     if not email:
         return None
+
+    cleaned = email.strip()
+
+    exact = db.query(models.User).filter(models.User.email == cleaned).first()
+    if exact:
+        return exact
+
     return (
         db.query(models.User)
-        .filter(func.lower(models.User.email) == email.strip().lower())
+        .filter(func.lower(models.User.email) == cleaned.lower())
+        .order_by(models.User.id)
         .first()
     )
 

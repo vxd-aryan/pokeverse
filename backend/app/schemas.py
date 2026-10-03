@@ -66,10 +66,19 @@ class UserLogin(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        # Normalised the same way as registration so the lookup
-        # matches regardless of how the address was typed.
-        return (v or "").strip().lower()
-
+        # Whitespace only. Deliberately NOT lowercased.
+        #
+        # Registration lowercases, so no new account can differ from
+        # another by case alone. But accounts created before that rule
+        # existed can, and those pairs are genuinely separate accounts
+        # with separate passwords. Lowercasing here would collapse the
+        # address the user typed before the lookup could tell them
+        # apart, making one of the two permanently unreachable.
+        #
+        # `find_user_by_email` tries an exact match first and only then
+        # falls back to a case-insensitive one, so someone typing an
+        # unusual capitalisation of a unique address still gets in.
+        return (v or "").strip()
 
 class AuthResponse(BaseModel):
     """What /api/auth/login and /api/auth/register return.
