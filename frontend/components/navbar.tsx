@@ -60,7 +60,13 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
       return;
     }
 
-    const token = localStorage.getItem('trainer_token');
+    // The login flow has historically written the token under
+    // different keys, so check all three — same as layout.tsx.
+    const token =
+      localStorage.getItem('trainer_token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('token');
+
     
     try {
       const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, { 
@@ -78,6 +84,10 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
     } catch (err) {
       console.error("Could not contact server to delete account:", err);
     } finally {
+      // Deleting the account SHOULD take its Journey progress with it.
+      // Signing out should not — which is why logout() no longer
+      // clears everything and this does it explicitly.
+      localStorage.removeItem('pokeverse_journey_state');
       logout();
     }
   };
@@ -139,7 +149,18 @@ export default function NavBar() {
   }, []);
 
   const logout = () => {
-    localStorage.clear();
+    // Remove ONLY the auth keys.
+    //
+    // This used to be localStorage.clear(), which empties the whole
+    // store for this origin — so signing out also deleted the Journey
+    // save (pokeverse_journey_state) and any other local state. A
+    // player who signed out came back to a blank run.
+    //
+    // If you add another auth key later, remove it here too; never
+    // reach for clear().
+    localStorage.removeItem('trainer_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('token');
     clearUser();
     window.location.href = '/';
   };
@@ -204,6 +225,14 @@ export default function NavBar() {
                 <span>⚔️</span>
                 Battle
               </Link>
+
+              <Link 
+                href="/journey" 
+                className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-black uppercase tracking-widest text-sm transition-colors"
+              >
+                <span>🗺️</span>
+                Journey
+              </Link>
             </div>
           </div>
 
@@ -265,6 +294,13 @@ export default function NavBar() {
               >
                 <span>⚔️</span>
                 Battle
+              </Link>
+              <Link 
+                href="/journey" 
+                className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-black uppercase tracking-widest text-sm transition-colors"
+              >
+                <span>🗺️</span>
+                Journey
               </Link>
           </div>
 

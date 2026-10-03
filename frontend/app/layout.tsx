@@ -85,6 +85,10 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
     } catch (err) {
       console.error("Could not contact server to delete account:", err);
     } finally {
+      // Deleting the account SHOULD take its Journey progress with it.
+      // Signing out should not — which is why logout() no longer
+      // clears everything and this does it explicitly.
+      localStorage.removeItem('pokeverse_journey_state');
       logout();
     }
   };
@@ -235,7 +239,18 @@ export default function RootLayout({
   }, [user, setUser]); // Re-bind if user object changes
 
   const logout = () => {
-    localStorage.clear();
+    // Remove ONLY the auth keys.
+    //
+    // This used to be localStorage.clear(), which empties the whole
+    // store for this origin — so signing out also deleted the Journey
+    // save (pokeverse_journey_state) and any other local state. A
+    // player who signed out came back to a blank run.
+    //
+    // If you add another auth key later, remove it here too; never
+    // reach for clear().
+    localStorage.removeItem('trainer_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('token');
     clearUser();
     window.location.href = '/';
   };
