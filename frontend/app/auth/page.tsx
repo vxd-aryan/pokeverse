@@ -5,6 +5,48 @@ import { useUserStore } from '@/store/userStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// The backend URL was hardcoded in this file and several others, so
+// pointing the app at a local API meant editing every one of them.
+// Set NEXT_PUBLIC_API_URL in .env.local to override.
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || 'https://pokeverse-backend1.onrender.com';
+
+// Styles are injected with a plain <style> tag rather than
+// styled-jsx. Every rule here is global, so scoping buys nothing,
+// and styled-jsx's JSX typings aren't present in every Next/tsconfig
+// combination — which fails the build with "Property 'jsx' does not
+// exist on type ...".
+
+/** Registration minimum, matching the backend's schema. */
+const PASSWORD_MIN = 8;
+
+/**
+ * Turns any error shape FastAPI might return into one readable line.
+ *
+ * FastAPI reports validation failures as `detail: [{loc, msg, ...}]`
+ * — an array. The previous code did `data.detail || data.message`,
+ * so a short password or malformed email surfaced to the user as
+ * "[object Object]".
+ */
+function describeApiError(data: any, fallback: string): string {
+  const detail = data?.detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((d: any) => {
+        const field = Array.isArray(d?.loc) ? d.loc[d.loc.length - 1] : null;
+        const msg = (d?.msg || '').replace(/^Value error,\s*/, '');
+        return field && field !== 'body' ? `${field}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    if (messages.length) return messages.join(' · ');
+  }
+
+  if (typeof detail === 'string' && detail) return detail;
+  if (typeof data?.message === 'string' && data.message) return data.message;
+  return fallback;
+}
+
 export default function AuthPage() {
   const { setUser, clearUser } = useUserStore() as any;
   const router = useRouter();
@@ -30,8 +72,8 @@ export default function AuthPage() {
       localStorage.removeItem('trainer_token');
 
       const endpoint = isLogin
-        ? 'https://pokeverse-backend1.onrender.com/api/auth/login'
-        : 'https://pokeverse-backend1.onrender.com/api/auth/register';
+        ? `${API_BASE}/api/auth/login`
+        : `${API_BASE}/api/auth/register`;
 
       const payload = isLogin
         ? { email, password }
@@ -43,36 +85,64 @@ export default function AuthPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.detail || data.message || "Authentication Failed. Check your credentials.");
+        throw new Error(
+          describeApiError(data, 'Authentication failed. Check your credentials.')
+        );
       }
 
-      // Extract token or fallback to email (backend session identifier)
-      const authToken = 
-        data.access_token || 
-        data.token || 
-        data.accessToken || 
-        data.email;
+      // The token must be a real signed JWT from the server.
+      //
+      // This used to fall back to `data.email` when no token was
+      // present, which is how an email address ended up working as a
+      // bearer token — knowing someone's address was a full login.
+      // There is no fallback now: no token means no session.
+      const authToken = data.access_token || data.token || data.accessToken;
 
       if (!authToken) {
-        throw new Error("Unable to establish user session from backend response.");
+        throw new Error(
+          'The server did not return a session token. Please try again, or contact support if this continues.'
+        );
       }
 
-      // Store active session identifier
       localStorage.setItem('access_token', authToken);
       localStorage.setItem('token', authToken);
       localStorage.setItem('trainer_token', authToken);
 
+      // Fetch the real profile rather than inventing one.
+      //
+      // The auth response carries only email and username, so the old
+      // code defaulted level to 1 and XP to 0 — and because
+      // layout.tsx only fetches /api/users/me when there's a token
+      // AND no user, setting a user here meant it never ran. A
+      // returning trainer saw "Level 1, 0 XP" until they reloaded.
+      let profile: any = null;
+      try {
+        const meRes = await fetch(`${API_BASE}/api/users/me`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        if (meRes.ok) profile = await meRes.json();
+      } catch (profileErr) {
+        // Not fatal — the session is valid, and layout.tsx will fill
+        // the profile in on the next load.
+        console.warn('Could not load trainer profile after sign-in:', profileErr);
+      }
+
       if (typeof setUser === 'function') {
         setUser({
-          username: data.username || username || email.split('@')[0],
+          id: profile?.id,
+          username: profile?.username || data.username || username || email.split('@')[0],
           email: data.email || email,
-          level: data.level || 1,
-          title: data.title || "Novice Trainer",
-          current_xp: data.current_xp || 0,
-          guessed_pokemon: data.guessed_pokemon || []
+          level: profile?.level ?? 1,
+          title: profile?.title ?? 'Novice Trainer',
+          current_xp: profile?.current_xp ?? 0,
+          battles_played: profile?.battles_played ?? 0,
+          wins: profile?.wins ?? 0,
+          losses: profile?.losses ?? 0,
+          win_rate: profile?.win_rate ?? 0,
+          guessed_pokemon: data.guessed_pokemon || [],
         });
       }
 
@@ -80,8 +150,8 @@ export default function AuthPage() {
       router.push('/quiz');
 
     } catch (err: any) {
-      console.error("Login Error Catch:", err);
-      setError(err.message || "Failed to establish a terminal bridge with the Academy.");
+      console.error('Auth error:', err);
+      setError(err.message || 'Failed to establish a terminal bridge with the Academy.');
     } finally {
       setLoading(false);
     }
@@ -89,7 +159,7 @@ export default function AuthPage() {
 
   return (
     <div className="gate-root min-h-screen text-white flex flex-col justify-center items-center p-4 relative overflow-hidden">
-      
+
       {/* Dynamic Sky & Scenery Decoration */}
       <div className="stars" aria-hidden="true" />
       <div className="sun-glow" aria-hidden="true" />
@@ -100,7 +170,7 @@ export default function AuthPage() {
 
       <div className="w-full max-w-md gate-sign relative z-10 rounded-[28px] p-[2px] transition-all duration-500 hover:shadow-2xl hover:-translate-y-1">
         <div className="gate-sign-inner rounded-[26px] p-8 sm:p-10 backdrop-blur-xl">
-          
+
           <div className="text-center mb-8">
             <div className="emblem mx-auto mb-4" aria-hidden="true">
               <span className="emblem-dot" />
@@ -128,7 +198,7 @@ export default function AuthPage() {
 
           {error && (
             <div className="error-scroll text-sm p-4 rounded-xl mb-6 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-300 shadow-sm border-l-4">
-              <span className="mt-0.5 text-lg">⚠️</span> 
+              <span className="mt-0.5 text-lg">⚠️</span>
               <p className="leading-tight">{error}</p>
             </div>
           )}
@@ -139,6 +209,8 @@ export default function AuthPage() {
               <input
                 type="text"
                 required={!isLogin}
+                minLength={!isLogin ? 2 : undefined}
+                maxLength={20}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="e.g. AshKetchum"
@@ -163,11 +235,21 @@ export default function AuthPage() {
               <input
                 type="password"
                 required
+                // Enforced on registration only. Existing accounts may
+                // have shorter passwords from before the rule existed,
+                // and they still need to be able to sign in.
+                minLength={!isLogin ? PASSWORD_MIN : undefined}
+                maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="gate-input w-full rounded-xl px-4 py-3 text-sm transition-all duration-200"
               />
+              {!isLogin && (
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  At least {PASSWORD_MIN} characters.
+                </p>
+              )}
             </div>
 
             <button
@@ -196,7 +278,7 @@ export default function AuthPage() {
         </div>
       </div>
 
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
 
         .gate-root {
@@ -207,7 +289,7 @@ export default function AuthPage() {
         .stars {
           position: absolute;
           top: 0; left: 0; right: 0; bottom: 50%;
-          background-image: 
+          background-image:
             radial-gradient(2px 2px at 20px 30px, #ffffff, rgba(0,0,0,0)),
             radial-gradient(2px 2px at 40px 70px, #ffffff, rgba(0,0,0,0)),
             radial-gradient(2px 2px at 50px 160px, #ffffff, rgba(0,0,0,0)),
@@ -258,7 +340,7 @@ export default function AuthPage() {
         }
         .cloud-a { width: 180px; height: 42px; top: 18%; left: 5%; }
         .cloud-b { width: 140px; height: 32px; top: 28%; right: 5%; }
-        
+
         @media (prefers-reduced-motion: no-preference) {
           .cloud-a { animation: drift 25s ease-in-out infinite; }
           .cloud-b { animation: drift 30s ease-in-out infinite reverse; }
@@ -309,9 +391,12 @@ export default function AuthPage() {
           background: linear-gradient(145deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
           box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
         }
-        
+
+        /* Was rgba(253,24bf,235,0.95) — "24bf" is not a number, so the
+           whole declaration was invalid and the panel fell back to
+           transparent. */
         .gate-sign-inner {
-          background: linear-gradient(135deg, rgba(253,24bf,235,0.95) 0%, rgba(245,235,215,0.98) 100%);
+          background: linear-gradient(135deg, rgba(253,245,235,0.95) 0%, rgba(245,235,215,0.98) 100%);
           box-shadow: inset 0 2px 20px rgba(255,255,255,0.5);
         }
 
@@ -396,7 +481,7 @@ export default function AuthPage() {
           border: 1.5px solid #2d3748;
           transform: translate(-50%, -50%);
         }
-        
+
         @media (prefers-reduced-motion: no-preference) {
           .mini-pokeball { animation: spin-bounce 1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
         }
@@ -418,7 +503,7 @@ export default function AuthPage() {
           .cloud-a, .cloud-b, .sun-glow { animation: none; }
           .gate-sign:hover .emblem { transform: none; }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }

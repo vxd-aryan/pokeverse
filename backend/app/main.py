@@ -13,10 +13,21 @@ import asyncio
 import math
 
 # Corrected absolute imports using 'app.' prefix
+from sqlalchemy import func
+
 from app.database import get_db, engine
 from app import models
 from app import schemas
 from app import crud
+
+# --- Security dependencies ---
+# pip install bcrypt "python-jose[cryptography]"
+#
+# bcrypt is used directly rather than through passlib: passlib 1.7.x
+# reads bcrypt.__about__.__version__, which bcrypt 4.x removed, so the
+# combination raises on first use. One less layer, one less breakage.
+import bcrypt
+from jose import JWTError, jwt
 
 # Automatically generate database tables if they do not exist
 models.Base.metadata.create_all(bind=engine)
@@ -34,6 +45,151 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# AUTHENTICATION
+# ============================================================
+# Previously this API had no tokens at all: /api/auth/login
+# returned the user's email, the client sent it back as
+# "Authorization: Bearer <email>", and every endpoint did
+# authorization.split(" ")[1] and trusted the result. Knowing an
+# email address was therefore a complete login, and the battle
+# WebSocket accepted any string as an identity.
+#
+# Passwords were also stored verbatim in the hashed_password
+# column, so the database held every user's real password.
+#
+# This section replaces all of that with bcrypt hashing and
+# signed, expiring JWTs.
+
+# JWT_SECRET MUST be set in the environment in production. The
+# development fallback is deliberately obvious, and refusing to
+# start without a real secret is safer than silently signing
+# tokens anyone could forge.
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days
+
+if not JWT_SECRET:
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise RuntimeError(
+            "JWT_SECRET is not set. Refusing to start in production with a "
+            "predictable signing key."
+        )
+    JWT_SECRET = "dev-only-insecure-secret-change-me"
+    print("[Auth] WARNING: JWT_SECRET not set; using an insecure development key.")
+
+# bcrypt hashes at most 72 bytes and raises on anything longer, so the
+# input is truncated explicitly rather than left to blow up at runtime.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _pw_bytes(plain: str) -> bytes:
+    return (plain or "").encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(_pw_bytes(plain), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, stored: str) -> bool:
+    """True if the password matches.
+
+    Also handles the legacy rows written before hashing existed, where
+    `hashed_password` holds the plaintext. Those compare directly once
+    and are then upgraded by the login route, so existing accounts
+    keep working without a forced reset.
+    """
+    if not stored:
+        return False
+    try:
+        return bcrypt.checkpw(_pw_bytes(plain), stored.encode("utf-8"))
+    except Exception:
+        # Not a valid bcrypt hash - treat it as a legacy plaintext row.
+        return plain == stored
+
+
+def is_legacy_plaintext(stored: str) -> bool:
+    return bool(stored) and not stored.startswith("$2")
+
+
+def create_access_token(user: "models.User") -> str:
+    expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+    payload = {
+        "sub": user.email,       # subject: who this token is for
+        "uid": user.id,
+        "username": user.username,
+        "exp": expires,
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> Optional[dict]:
+    """Returns the claims, or None if the token is missing, expired,
+    tampered with, or signed with a different key."""
+    if not token:
+        return None
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except JWTError:
+        return None
+
+
+def email_from_token(token: str) -> Optional[str]:
+    claims = decode_access_token(token)
+    return claims.get("sub") if claims else None
+
+
+def find_user_by_email(db: Session, email: str) -> Optional["models.User"]:
+    """Case-insensitive email lookup.
+
+    New rows are normalised to lowercase by the schemas, but rows
+    written before that could be any case. Comparing with lower() on
+    both sides means an old "Jp@Example.com" account is still
+    reachable instead of silently becoming unreachable.
+    """
+    if not email:
+        return None
+    return (
+        db.query(models.User)
+        .filter(func.lower(models.User.email) == email.strip().lower())
+        .first()
+    )
+
+
+def get_current_trainer(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+) -> "models.User":
+    """The single gate for every authenticated route.
+
+    Replaces the old pattern of each endpoint slicing the header and
+    querying by the result. There is no fallback to "first user in
+    the table" - an unverifiable token is a 401, full stop.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized session.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = authorization.split(" ", 1)[1].strip()
+    email = email_from_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired or invalid. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = find_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="Trainer profile not found.")
+    return user
+
 
 # --- DAILY GAUNTLET STATE CACHE ---
 DAILY_CACHE = {
@@ -94,18 +250,35 @@ def generate_daily_gauntlet():
     return questions
 
 
+# ============================================================
+# LEVELLING
+# ============================================================
+# Defined once, in crud.apply_xp_gain, and re-exported here for
+# the quiz routes below.
+#
+# It used to be written out twice in this file and a third time in
+# crud.py - and crud's version disagreed about what `current_xp`
+# means, recomputing level from it as a lifetime total while these
+# routes treated it as a per-level remainder. A trainer who won a
+# battle could be demoted as a result. One definition now.
+
+from app.crud import apply_xp_gain
+
+
 # --- AUTHENTICATION ROUTES ---
 
 @app.post("/api/auth/register")
 def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
-    existing_user = db.query(models.User).filter(models.User.email == user_data.email).first()
+    existing_user = find_user_by_email(db, user_data.email)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered in the Pokédex.")
 
     new_user = models.User(
         username=user_data.username,
         email=user_data.email,
-        hashed_password=user_data.password,
+        # Hashed, not stored verbatim. This column used to hold the
+        # raw password despite its name.
+        hashed_password=hash_password(user_data.password),
         level=1,
         title="Novice Trainer",
         current_xp=0,
@@ -117,45 +290,59 @@ def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "Registration successful", "email": new_user.email, "username": new_user.username}
+    # Hand back a token so the client is signed in immediately
+    # rather than having to post the password a second time.
+    return {
+        "message": "Registration successful",
+        "access_token": create_access_token(new_user),
+        "token_type": "bearer",
+        "email": new_user.email,
+        "username": new_user.username,
+    }
 
 @app.post("/api/auth/login")
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == credentials.email).first()
-    if not user or user.hashed_password != credentials.password:
+    user = find_user_by_email(db, credentials.email)
+
+    # Same message and status for "no such user" and "wrong password",
+    # so the endpoint can't be used to discover which emails are
+    # registered.
+    if not user or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
-    return {"message": "Login successful", "email": user.email, "username": user.username}
+
+    # Opportunistic migration: accounts created before hashing existed
+    # still hold plaintext. The first successful login replaces it with
+    # a bcrypt hash, so nobody is locked out and the plaintext goes
+    # away as people sign in.
+    if is_legacy_plaintext(user.hashed_password):
+        user.hashed_password = hash_password(credentials.password)
+        db.commit()
+        db.refresh(user)
+        print(f"[Auth] Upgraded legacy plaintext password for {user.email}.")
+
+    return {
+        "message": "Login successful",
+        "access_token": create_access_token(user),
+        "token_type": "bearer",
+        "email": user.email,
+        "username": user.username,
+    }
 
 
 # --- PROFILE ROUTES ---
 
 @app.get("/api/users/me", response_model=schemas.UserResponse)
-def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized session.")
-
-    user_email = authorization.split(" ")[1]
-    user = db.query(models.User).filter(models.User.email == user_email).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Trainer profile not found.")
-
+def get_current_user(user: models.User = Depends(get_current_trainer)):
     return user
 
 @app.delete("/api/users/me")
-def delete_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized session.")
-
-    user_email = authorization.split(" ")[1]
-    user = db.query(models.User).filter(models.User.email == user_email).first()
-
-    if user:
-        db.delete(user)
-        db.commit()
-        return {"message": "Trainer profile completely erased from Academy records."}
-
-    raise HTTPException(status_code=404, detail="Trainer profile not found.")
+def delete_current_user(
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
+    db.delete(user)
+    db.commit()
+    return {"message": "Trainer profile completely erased from Academy records."}
 
 
 # --- COMPETITIVE ROUTES ---
@@ -169,9 +356,10 @@ def get_global_leaderboard(db: Session = Depends(get_db)):
     return top_trainers
 
 @app.get("/api/leaderboard/daily", response_model=List[schemas.LeaderboardUserResponse])
-def get_daily_leaderboard(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized session.")
+def get_daily_leaderboard(
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
     return crud.get_daily_leaderboard(db)
 
 @app.get("/api/quiz/daily/questions")
@@ -181,18 +369,9 @@ def get_daily_questions():
 @app.post("/api/quiz/daily/submit", response_model=schemas.UserResponse)
 def submit_daily_gauntlet(
     payload: schemas.DailyQuizSubmission,
-    authorization: Optional[str] = Header(None),
+    user: models.User = Depends(get_current_trainer),
     db: Session = Depends(get_db)
 ):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized session.")
-
-    user_email = authorization.split(" ")[1]
-    user = db.query(models.User).filter(models.User.email == user_email).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Trainer not found in the Academy database.")
-
     today = datetime.date.today()
     today_str = str(today)
     yesterday_str = str(today - datetime.timedelta(days=1))
@@ -220,14 +399,7 @@ def submit_daily_gauntlet(
     user.last_quiz_date = today
     user.daily_correct += score
 
-    xp_gained = score * 50
-    user.current_xp += xp_gained
-
-    while user.current_xp >= (user.level * 100):
-        user.current_xp -= (user.level * 100)
-        user.level += 1
-        if hasattr(crud, 'determine_title'):
-            user.title = crud.determine_title(user.level)
+    apply_xp_gain(user, score * 50)
 
     db.commit()
     db.refresh(user)
@@ -413,26 +585,11 @@ def get_evolution_question():
 @app.post("/api/quiz/practice/submit", response_model=schemas.UserResponse)
 def submit_practice_quiz(
     payload: schemas.QuizSubmit,
-    authorization: Optional[str] = Header(None),
+    user: models.User = Depends(get_current_trainer),
     db: Session = Depends(get_db)
 ):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized session.")
-
-    user_email = authorization.split(" ")[1]
-    user = db.query(models.User).filter(models.User.email == user_email).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Trainer not found.")
-
     if payload.is_correct:
-        user.current_xp += 20
-
-        while user.current_xp >= (user.level * 100):
-            user.current_xp -= (user.level * 100)
-            user.level += 1
-            if hasattr(crud, 'determine_title'):
-                user.title = crud.determine_title(user.level)
+        apply_xp_gain(user, 20)
 
         db.commit()
         db.refresh(user)
@@ -968,13 +1125,11 @@ async def build_battle_team_async(user_id: str, selection: Any) -> List[dict]:
 # ============================================================
 # BATTLE RESULT PERSISTENCE
 # ============================================================
-# The arena's `user_id` throughout this module is the raw string sent as
-# the `?token=` query param - the SAME string /api/users/me treats as the
-# trainer's email (see get_current_user: `authorization.split(" ")[1]` is
-# used directly as `models.User.email`). So a battle result is looked up
-# by matching that string against User.email, then handed to the existing
-# crud.update_player_xp_and_stats - the same helper the REST battle
-# schemas implied but nothing ever actually called.
+# The arena's `user_id` is the trainer's email, but it is no longer
+# taken on trust from the query string: the WebSocket handshake now
+# decodes the JWT and uses the verified `sub` claim. A battle result
+# is therefore always written against an identity the server proved,
+# then handed to crud.update_player_xp_and_stats.
 
 def _get_db_session():
     """Pulls one Session out of the get_db() dependency generator for use
@@ -997,7 +1152,7 @@ def _close_db_session(gen) -> None:
 def _persist_battle_result_sync(user_email: str, is_winner: bool, critical_hits: int = 0) -> None:
     db, gen = _get_db_session()
     try:
-        user = db.query(models.User).filter(models.User.email == user_email).first()
+        user = find_user_by_email(db, user_email)
         if not user:
             print(f"[Battle Stats] No user found for '{user_email}'; skipping stat update.")
             return
@@ -1536,13 +1691,27 @@ matchmaker = BattleMatchmaker()
 
 
 @app.websocket("/ws")
-async def alias_battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
+async def alias_battle_websocket_endpoint(websocket: WebSocket, token: str = ""):
     await battle_websocket_endpoint(websocket, token)
 
 
 @app.websocket("/api/battle/ws")
-async def battle_websocket_endpoint(websocket: WebSocket, token: str = "guest"):
-    user_id = token
+async def battle_websocket_endpoint(websocket: WebSocket, token: str = ""):
+    # The identity MUST come from a verified token.
+    #
+    # This endpoint used to do `user_id = token` with a default of
+    # "guest", so any client could connect as any trainer simply by
+    # putting their email in the query string - and then win battles
+    # on their behalf, since results are persisted against this id.
+    #
+    # Closing before accept() means an unauthenticated client never
+    # gets a usable socket. 1008 is "policy violation".
+    user_id = email_from_token(token)
+    if not user_id:
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        print("[Battle Arena] Rejected a connection with a missing/invalid token.")
+        return
+
     await matchmaker.register_connection(user_id, websocket)
 
     try:
