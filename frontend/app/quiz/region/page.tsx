@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/store/userStore';
+import { apiUrl } from '@/lib/api';
 
 interface QuizData {
   pokemon_id: number;
@@ -23,7 +24,7 @@ export default function RegionMasteryQuiz() {
     setSelected(null);
     setCorrectAnswer(null);
     try {
-      const res = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/region');
+      const res = await fetch(apiUrl('/api/quiz/region'));
       const data = await res.json();
       setQuiz(data);
       
@@ -57,7 +58,7 @@ export default function RegionMasteryQuiz() {
 
     if (isCorrect) {
       try {
-        const xpRes = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/practice/submit', {
+        const xpRes = await fetch(apiUrl('/api/quiz/practice/submit'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

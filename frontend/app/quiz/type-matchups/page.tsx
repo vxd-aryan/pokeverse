@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/store/userStore';
+import { apiUrl } from '@/lib/api';
 
 interface QuizData {
   pokemon_id: number;
@@ -25,7 +26,7 @@ export default function TypeMatchups() {
     setSelected(null);
     setError("");
     try {
-      const res = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/type-match');
+      const res = await fetch(apiUrl('/api/quiz/type-match'));
       if (!res.ok) throw new Error(`API standard returned status ${res.status}`);
       const data = await res.json();
       setQuiz(data);
@@ -50,7 +51,7 @@ export default function TypeMatchups() {
 
     if (isCorrect && token) {
       try {
-        const xpRes = await fetch('https://pokeverse-backend1.onrender.com/api/quiz/practice/submit', {
+        const xpRes = await fetch(apiUrl('/api/quiz/practice/submit'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

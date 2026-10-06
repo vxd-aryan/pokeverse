@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from '@/lib/api';
 
 export default function BattleCreatePage() {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function BattleCreatePage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("token"); // Assuming JWT is stored here
-      const res = await fetch("https://pokeverse-backend1.onrender.com/api/battle/start", {
+      const res = await fetch(apiUrl("/api/battle/start"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

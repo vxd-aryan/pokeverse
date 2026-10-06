@@ -7,7 +7,9 @@ import { useUserStore } from '@/store/userStore';
 import {
   REGION_ORDER, getRegion, regionName, isImplemented, previousRegionId,
 } from './data/regions';
-import { getRegionState, hasStarted, isRegionUnlocked } from './lib/journeyStorage';
+import {
+  getRegionState, hasStarted, isRegionUnlocked, syncJourneyWithAccount,
+} from './lib/journeyStorage';
 import { journeyStyles, GlobalStyle } from './components/JourneyShell';
 
 // ============================================================
@@ -16,12 +18,35 @@ import { journeyStyles, GlobalStyle } from './components/JourneyShell';
 // Lists every region in canonical order. Built ones are playable;
 // the rest show as coming soon, so the shape of the whole Journey
 // is visible from the first visit.
+//
+// This page is also where the save is reconciled with the account.
+// It is the entry point to every region, so a trainer arriving on
+// a new browser passes through here before they can start a run —
+// which is the moment to restore their progress, and the last
+// moment before they would otherwise be offered a fresh starter.
 // ============================================================
+
+/**
+ * What the account sync is doing.
+ *
+ *  checking  — asking the server, cards not drawn yet
+ *  restored  — a newer save came down and replaced the local one
+ *  local     — local save kept (it was newer, or the only one)
+ *  offline   — server unreachable; playing from localStorage
+ */
+type SyncStatus = 'checking' | 'restored' | 'local' | 'offline';
 
 export default function JourneyHubPage() {
   const { user } = useUserStore() as any;
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [sync, setSync] = useState<SyncStatus>('checking');
+
+  // Bumped once the sync finishes so the cards below re-read
+  // localStorage. Without it, a restored save would sit in storage
+  // while the already-rendered cards kept showing the old one —
+  // the progress would be there, but only after a manual refresh.
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -31,22 +56,96 @@ export default function JourneyHubPage() {
     setMounted(true);
   }, [user, router]);
 
+  useEffect(() => {
+    if (!user?.username) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await syncJourneyWithAccount(user.username);
+        if (cancelled) return;
+
+        if (result.action === 'adopted-server') {
+          setSync('restored');
+          setRevision((n) => n + 1);
+        } else if (result.action === 'failed') {
+          setSync('offline');
+        } else {
+          // kept-local, no-server-save, signed-out — in all three
+          // the local save is the one being played.
+          setSync('local');
+        }
+      } catch {
+        if (!cancelled) setSync('offline');
+      }
+    })();
+
+    // Guards against setting state after the player has navigated
+    // away, which React warns about and which would also stomp on
+    // the next page's state.
+    return () => { cancelled = true; };
+  }, [user?.username]);
+
   if (!mounted || !user) return null;
+
+  // Deliberately blocking rather than rendering the cards straight
+  // away. Drawing "Choose your starter" and then flipping it to
+  // "4/8 badges" a second later looks like a bug, and a trainer who
+  // clicked in that first second would be offered a new starter
+  // over the top of a finished run.
+  if (sync === 'checking') {
+    return (
+      <div className="jr-root min-h-screen p-4 md:p-10">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="jr-pixel text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
+          <div className="jr-panel p-6 text-center jr-fade mt-8">
+            <p className="jr-pixel text-[11px] text-yellow-300 mb-3">CHECKING YOUR RECORDS</p>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Looking up your saved progress…
+            </p>
+          </div>
+        </div>
+        <GlobalStyle css={journeyStyles} />
+      </div>
+    );
+  }
 
   return (
     <div className="jr-root min-h-screen p-4 md:p-10">
       <div className="max-w-4xl mx-auto">
         <h1 className="jr-pixel text-sm md:text-xl mb-2 text-yellow-300">TRAINER JOURNEY</h1>
-        <p className="text-[11px] text-slate-400 mb-8 max-w-lg leading-relaxed">
+        <p className="text-[11px] text-slate-400 mb-4 max-w-lg leading-relaxed">
           Pick a starter, explore the routes, catch your own team and earn every badge.
           Each region is its own run, with its own starters, leaders and wild Pokémon.
         </p>
+
+        {sync === 'restored' && (
+          <div className="mb-6 border-2 border-green-500 bg-green-900/20 p-3 jr-fade">
+            <p className="text-[10px] text-green-300 uppercase tracking-wide">
+              Progress restored from your account
+            </p>
+          </div>
+        )}
+
+        {sync === 'offline' && (
+          <div className="mb-6 border-2 border-slate-700 bg-slate-900/60 p-3 jr-fade">
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+              Playing offline — progress is saved on this device and will sync later
+            </p>
+          </div>
+        )}
+
+        {sync === 'local' && <div className="mb-4" />}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {REGION_ORDER.map((rid, i) => {
             const built = isImplemented(rid);
             const region = getRegion(rid);
             const unlocked = built && isRegionUnlocked(user.username, previousRegionId(rid));
+            // `revision` is read here only so this block re-runs after
+            // a restore; the value itself is not otherwise used.
+            void revision;
             const state = built ? getRegionState(user.username, rid, region!.map.nodes[0]?.id) : null;
             const complete = state?.regionComplete;
             const total = region?.challenges.length ?? 8;

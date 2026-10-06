@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status, Header, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, status, Header, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Set, Any
@@ -31,6 +31,25 @@ from jose import JWTError, jwt
 
 # Automatically generate database tables if they do not exist
 models.Base.metadata.create_all(bind=engine)
+
+# Every outbound call to PokéAPI gets a deadline. Without one,
+# `requests` waits indefinitely, and a single slow upstream response
+# holds a worker thread open - with enough of them, the API stops
+# answering anything at all.
+POKEAPI_TIMEOUT = 5  # seconds
+
+# How many evolution chains to try before giving up. Roughly half of
+# the first 200 chains have no evolution step, so a handful of tries
+# almost always finds one; the cap exists for when PokéAPI is down,
+# not for when it is merely unlucky.
+MAX_EVOLUTION_ATTEMPTS = 12
+
+# How many times to draw a wrong answer before accepting fewer
+# options. Collisions are rare across 386 species, but the draw is
+# random and must not be able to spin forever.
+MAX_DISTRACTOR_ATTEMPTS = 20
+
+
 
 app = FastAPI(title="PokéVerse Academy Sync Matrix")
 
@@ -235,7 +254,7 @@ def generate_daily_gauntlet():
     for i in range(10):
         poke_id = rng.randint(1, 1025)
         try:
-            res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}").json()
+            res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{poke_id}", timeout=POKEAPI_TIMEOUT).json()
             name = res["name"].replace("-", " ").title()
             artwork = res["sprites"]["other"]["official-artwork"]["front_default"] or res["sprites"]["front_default"]
 
@@ -251,9 +270,13 @@ def generate_daily_gauntlet():
                 q_text = "Identify this Pokémon."
                 correct = name
                 options = [correct]
-                while len(options) < 4:
+                # Bounded for the same reason as the others: a network
+                # call inside an unbounded loop has no way to give up.
+                for _ in range(MAX_DISTRACTOR_ATTEMPTS):
+                    if len(options) >= 4:
+                        break
                     wrong_id = rng.randint(1, 1025)
-                    wrong_name = requests.get(f"https://pokeapi.co/api/v2/pokemon/{wrong_id}").json()["name"].replace("-", " ").title()
+                    wrong_name = requests.get(f"https://pokeapi.co/api/v2/pokemon/{wrong_id}", timeout=POKEAPI_TIMEOUT).json()["name"].replace("-", " ").title()
                     if wrong_name not in options: options.append(wrong_name)
 
             rng.shuffle(options)
@@ -323,15 +346,119 @@ def register(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
         "username": new_user.username,
     }
 
+# --- LOGIN THROTTLING ---
+#
+# Without this, /api/auth/login answers as fast as it is asked, so
+# guessing a password is limited only by bandwidth. bcrypt makes each
+# attempt cost something, but a short or common password still falls
+# in minutes.
+#
+# Two counters, because they stop different attacks:
+#   - per email  : someone hammering one account
+#   - per IP     : someone spraying one common password across many
+#                  accounts, which never trips a per-email limit
+#
+# Deliberately in process memory, not the database. Render's free tier
+# runs a single instance, so one dict is the whole picture; writing a
+# row per failed attempt would mean a database write on every attack
+# request, which hands the attacker a cheaper way to hurt the service
+# than guessing passwords. The cost is that the counters reset when
+# the instance restarts or spins down - acceptable here, but if this
+# ever runs on more than one instance it needs Redis instead, or each
+# instance will enforce its own separate allowance.
+
+MAX_FAILED_PER_EMAIL = 8
+MAX_FAILED_PER_IP = 25
+FAILED_WINDOW_SECONDS = 15 * 60
+LOCKOUT_SECONDS = 15 * 60
+
+# key -> list of attempt timestamps, newest last
+_failed_logins: Dict[str, List[float]] = {}
+
+
+def _recent_failures(key: str, now: float) -> List[float]:
+    """Failures for `key` inside the window, pruned of older ones."""
+    attempts = [t for t in _failed_logins.get(key, []) if now - t < FAILED_WINDOW_SECONDS]
+    if attempts:
+        _failed_logins[key] = attempts
+    else:
+        _failed_logins.pop(key, None)
+    return attempts
+
+
+def _check_login_allowed(email: str, client_ip: str) -> None:
+    """Raise 429 if this email or IP has failed too often lately."""
+    now = time.time()
+
+    # Housekeeping: without this the dict grows for every address
+    # ever tried, which is itself a slow memory leak under attack.
+    if len(_failed_logins) > 10_000:
+        for key in list(_failed_logins):
+            _recent_failures(key, now)
+
+    by_email = _recent_failures(f"email:{email.lower()}", now)
+    by_ip = _recent_failures(f"ip:{client_ip}", now)
+
+    if len(by_email) >= MAX_FAILED_PER_EMAIL or len(by_ip) >= MAX_FAILED_PER_IP:
+        newest = max(by_email[-1:] + by_ip[-1:], default=now)
+        retry_after = max(1, int(LOCKOUT_SECONDS - (now - newest)))
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed sign-in attempts. Please wait a few minutes and try again.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def _record_login_failure(email: str, client_ip: str) -> None:
+    now = time.time()
+    _failed_logins.setdefault(f"email:{email.lower()}", []).append(now)
+    _failed_logins.setdefault(f"ip:{client_ip}", []).append(now)
+
+
+def _clear_login_failures(email: str, client_ip: str) -> None:
+    """A successful sign-in clears the slate for that email.
+
+    The IP counter is left alone on purpose: one correct password
+    among many wrong ones is exactly what a spraying attack looks
+    like, so a success should not reset it.
+    """
+    _failed_logins.pop(f"email:{email.lower()}", None)
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client address.
+
+    Render terminates TLS and proxies, so request.client.host is the
+    proxy. X-Forwarded-For's first entry is the original client. It
+    is client-supplied and therefore spoofable - which only means an
+    attacker can spread themselves across fake IPs, so the per-email
+    limit is the one doing the real work here.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @app.post("/api/auth/login")
-def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
+def login(
+    credentials: schemas.UserLogin,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    client_ip = _client_ip(request)
+    _check_login_allowed(credentials.email, client_ip)
+
     user = find_user_by_email(db, credentials.email)
 
     # Same message and status for "no such user" and "wrong password",
     # so the endpoint can't be used to discover which emails are
     # registered.
     if not user or not verify_password(credentials.password, user.hashed_password):
+        _record_login_failure(credentials.email, client_ip)
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    _clear_login_failures(credentials.email, client_ip)
 
     # Opportunistic migration: accounts created before hashing existed
     # still hold plaintext. The first successful login replaces it with
@@ -366,6 +493,176 @@ def delete_current_user(
     db.delete(user)
     db.commit()
     return {"message": "Trainer profile completely erased from Academy records."}
+
+
+# --- JOURNEY SAVE ROUTES ---
+#
+# The Journey save used to live only in the browser's localStorage,
+# keyed by username. That storage is per-device and per-origin, so a
+# different browser, a different machine, or clearing site data all
+# meant starting the adventure over - with nothing to recover from,
+# because the save had never left that one browser.
+#
+# These two routes make the account the home of the save. The client
+# still keeps its local copy and still plays from it, so the game
+# works offline and does not wait on the network between turns; it
+# just pushes the save up after meaningful progress and pulls it down
+# on sign-in.
+#
+# The server stores the blob without interpreting it. See the comment
+# on models.User.journey_state for why.
+
+# Enough for a full party, a thirty-slot box, a bag and badges with
+# room to spare; small enough that a malformed or hostile client
+# cannot fill the database. Measured on the serialised JSON.
+MAX_JOURNEY_SAVE_BYTES = 256 * 1024
+
+
+@app.get("/api/journey/state", response_model=schemas.JourneyStateResponse)
+def get_journey_state(user: models.User = Depends(get_current_trainer)):
+    """Return this trainer's stored save, if there is one.
+
+    `empty: true` means the server has never held a save for this
+    account. That is different from an empty save, and the client
+    must treat it as "keep what you have locally" rather than
+    "your progress is gone".
+    """
+    stored = getattr(user, "journey_state", None)
+    if not stored:
+        return {"empty": True}
+
+    return {
+        "state": stored,
+        "save_version": stored.get("version") if isinstance(stored, dict) else None,
+        "updated_at": getattr(user, "journey_updated_at", None),
+        "empty": False,
+    }
+
+
+@app.put("/api/journey/state", response_model=schemas.JourneyStateResponse)
+def put_journey_state(
+    payload: schemas.JourneyStatePut,
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
+    """Store this trainer's save, refusing to overwrite a newer one.
+
+    The staleness check matters because the same account can be open
+    in two places - a laptop mid-battle and a phone picked up later.
+    Without it, whichever tab happened to sync last would silently
+    flatten the other's progress. A client that is behind gets a 409
+    along with the newer save, so it can adopt it instead.
+    """
+    encoded = json.dumps(payload.state)
+    if len(encoded.encode("utf-8")) > MAX_JOURNEY_SAVE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Journey save is too large to store.",
+        )
+
+    incoming_at = payload.updated_at or datetime.datetime.now(datetime.timezone.utc)
+    if incoming_at.tzinfo is None:
+        incoming_at = incoming_at.replace(tzinfo=datetime.timezone.utc)
+
+    existing_at = getattr(user, "journey_updated_at", None)
+    if existing_at is not None:
+        # Columns written before timezone handling existed can come
+        # back naive; compare like with like rather than raising.
+        if existing_at.tzinfo is None:
+            existing_at = existing_at.replace(tzinfo=datetime.timezone.utc)
+        if existing_at > incoming_at:
+            raise HTTPException(
+                status_code=409,
+                detail="A newer save already exists for this trainer.",
+            )
+
+    user.journey_state = payload.state
+    user.journey_updated_at = incoming_at
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "state": user.journey_state,
+        "save_version": payload.save_version,
+        "updated_at": user.journey_updated_at,
+        "empty": False,
+    }
+
+
+@app.delete("/api/journey/state")
+def delete_journey_state(
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
+    """Erase the stored save so the trainer can start a new adventure.
+
+    Only clears the server copy; the client clears its own.
+    """
+    user.journey_state = None
+    user.journey_updated_at = None
+    db.commit()
+    return {"message": "Journey save cleared."}
+
+
+# --- BATTLE HISTORY ROUTES ---
+
+
+@app.get("/api/battles/history", response_model=List[schemas.BattleHistoryBase])
+def get_battle_history(
+    limit: int = 20,
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
+    """Finished battles this trainer took part in, newest first.
+
+    Matches where the trainer was the opponent count just as much as
+    ones where they were player one - the distinction is only the
+    order the battle room happened to create them in.
+    """
+    limit = max(1, min(limit, 50))
+    battles = (
+        db.query(models.Battle)
+        .filter(
+            (models.Battle.player_id == user.id)
+            | (models.Battle.opponent_id == user.id)
+        )
+        .order_by(models.Battle.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return battles
+
+
+@app.get("/api/battles/{battle_id}/logs")
+def get_battle_logs(
+    battle_id: int,
+    user: models.User = Depends(get_current_trainer),
+    db: Session = Depends(get_db),
+):
+    """Turn-by-turn log for one battle, for a detail view."""
+    battle = db.query(models.Battle).filter(models.Battle.id == battle_id).first()
+    if not battle:
+        raise HTTPException(status_code=404, detail="Battle not found.")
+
+    # Only the two participants can read a battle's log.
+    if user.id not in (battle.player_id, battle.opponent_id):
+        raise HTTPException(status_code=403, detail="That battle is not yours.")
+
+    logs = (
+        db.query(models.BattleLog)
+        .filter(models.BattleLog.battle_id == battle_id)
+        .order_by(models.BattleLog.id)
+        .all()
+    )
+    return {
+        "battle_id": battle_id,
+        "turn_count": battle.turn_count,
+        "winner_id": battle.winner_id,
+        "logs": [
+            {"turn": l.turn_number, "message": l.message, "event_type": l.event_type}
+            for l in logs
+        ],
+    }
 
 
 # --- COMPETITIVE ROUTES ---
@@ -434,17 +731,22 @@ def submit_daily_gauntlet(
 @app.get("/api/quiz/whos-that", response_model=schemas.QuizQuestion)
 def get_whos_that_question():
     pokemon_id = random.randint(1, 1025)
-    res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}").json()
+    res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=POKEAPI_TIMEOUT).json()
 
     correct_name = res["name"].capitalize()
     artwork_url = res["sprites"]["other"]["official-artwork"]["front_default"] or res["sprites"]["front_default"]
 
     options = [correct_name]
-    while len(options) < 4:
+    # Bounded: the body swallows its own exceptions, so an unreachable
+    # PokéAPI would otherwise keep this spinning with nothing to show
+    # for it and no way out.
+    for _ in range(MAX_DISTRACTOR_ATTEMPTS):
+        if len(options) >= 4:
+            break
         wrong_id = random.randint(1, 1025)
         if wrong_id != pokemon_id:
             try:
-                wrong_res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{wrong_id}").json()
+                wrong_res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{wrong_id}", timeout=POKEAPI_TIMEOUT).json()
                 wrong_name = wrong_res["name"].capitalize()
                 if wrong_name not in options:
                     options.append(wrong_name)
@@ -469,10 +771,10 @@ def get_type_match_question():
 
     pokemon_id = random.randint(1, 1025)
     try:
-        res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}").json()
+        res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=POKEAPI_TIMEOUT).json()
     except Exception:
         pokemon_id = 25
-        res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}").json()
+        res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=POKEAPI_TIMEOUT).json()
 
     pokemon_name = res["name"].replace("-", " ").title()
     artwork_url = res["sprites"]["other"]["official-artwork"]["front_default"] or res["sprites"]["front_default"]
@@ -481,7 +783,7 @@ def get_type_match_question():
     multipliers = {t: 1.0 for t in ALL_TYPES}
 
     for t in types:
-        t_data = requests.get(f"https://pokeapi.co/api/v2/type/{t}").json()["damage_relations"]
+        t_data = requests.get(f"https://pokeapi.co/api/v2/type/{t}", timeout=POKEAPI_TIMEOUT).json()["damage_relations"]
         for rel in t_data["double_damage_from"]: multipliers[rel["name"]] *= 2.0
         for rel in t_data["half_damage_from"]: multipliers[rel["name"]] *= 0.5
         for rel in t_data["no_damage_from"]: multipliers[rel["name"]] *= 0.0
@@ -544,7 +846,7 @@ def get_type_match_question():
 @app.get("/api/quiz/region", response_model=schemas.QuizQuestion)
 def get_region_question():
     pokemon_id = random.randint(1, 386)
-    res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}").json()
+    res = requests.get(f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}", timeout=POKEAPI_TIMEOUT).json()
 
     if pokemon_id <= 151:
         correct_region = "Kanto"
@@ -569,32 +871,68 @@ def get_region_question():
         "options": options
     }
 
+
 @app.get("/api/quiz/evolution", response_model=schemas.QuizQuestion)
 def get_evolution_question():
-    while True:
+    """Build an evolution question from a random PokéAPI chain.
+
+    This used to be `while True:` with a bare `except Exception:
+    continue` and no request timeout. Each of those is survivable
+    alone; together they are a trap. When PokéAPI is unreachable
+    every call raises immediately, so the loop spins at full speed,
+    forever, pinning a worker and flooding PokéAPI with retries -
+    and the client just hangs, because the handler never returns.
+
+    Now: bounded attempts, a timeout on every call, and an honest
+    503 when the upstream genuinely is not answering.
+    """
+    for _ in range(MAX_EVOLUTION_ATTEMPTS):
         try:
             chain_id = random.randint(1, 200)
-            res = requests.get(f"https://pokeapi.co/api/v2/evolution-chain/{chain_id}").json()
+            res = requests.get(
+                f"https://pokeapi.co/api/v2/evolution-chain/{chain_id}",
+                timeout=POKEAPI_TIMEOUT,
+            ).json()
 
             chain = res.get("chain", {})
             folds_to = chain.get("evolves_to", [])
 
+            # Plenty of chains are single-stage (Tauros, Lapras...).
+            # Not an error, just not usable as a question.
             if not folds_to:
                 continue
 
             base_name = chain["species"]["name"]
             evo_name = folds_to[0]["species"]["name"].capitalize()
 
-            base_pokemon = requests.get(f"https://pokeapi.co/api/v2/pokemon/{base_name}").json()
+            base_pokemon = requests.get(
+                f"https://pokeapi.co/api/v2/pokemon/{base_name}",
+                timeout=POKEAPI_TIMEOUT,
+            ).json()
             pokemon_id = base_pokemon["id"]
             artwork_url = base_pokemon["sprites"]["other"]["official-artwork"]["front_default"]
 
+            # A species without official artwork would render as a
+            # blank card, which looks like a broken page.
+            if not artwork_url:
+                continue
+
             options = [evo_name]
-            while len(options) < 4:
+            for _ in range(MAX_DISTRACTOR_ATTEMPTS):
+                if len(options) >= 4:
+                    break
                 wrong_id = random.randint(1, 386)
-                wrong_name = requests.get(f"https://pokeapi.co/api/v2/pokemon/{wrong_id}").json()["name"].capitalize()
+                wrong_name = requests.get(
+                    f"https://pokeapi.co/api/v2/pokemon/{wrong_id}",
+                    timeout=POKEAPI_TIMEOUT,
+                ).json()["name"].capitalize()
                 if wrong_name not in options and wrong_name != base_name.capitalize():
                     options.append(wrong_name)
+
+            # Three plausible options still make a fair question;
+            # two do not.
+            if len(options) < 3:
+                continue
 
             random.shuffle(options)
             return {
@@ -602,8 +940,17 @@ def get_evolution_question():
                 "artwork_url": artwork_url,
                 "options": options
             }
-        except Exception:
+        except (requests.RequestException, KeyError, ValueError, TypeError) as e:
+            # Named rather than bare: a timeout or a missing key is
+            # worth retrying, but a bug in this function should
+            # surface as a 500 instead of being swallowed silently.
+            print(f"[Quiz] Evolution attempt failed ({type(e).__name__}): {e}")
             continue
+
+    raise HTTPException(
+        status_code=503,
+        detail="Could not build an evolution question right now. Please try again.",
+    )
 
 @app.post("/api/quiz/practice/submit", response_model=schemas.UserResponse)
 def submit_practice_quiz(
@@ -1187,6 +1534,105 @@ def _persist_battle_result_sync(user_email: str, is_winner: bool, critical_hits:
         _close_db_session(gen)
 
 
+def _persist_battle_history_sync(
+    p1_email: str,
+    p2_email: str,
+    winner_email: Optional[str],
+    turn_count: int,
+    final_state: dict,
+    logs: List[dict],
+    crit_counts: Dict[str, int],
+    started_at: Optional[datetime.datetime] = None,
+) -> None:
+    """Write one finished arena battle into the history tables.
+
+    The `battles`, `battle_logs` and `battle_statistics` tables have
+    existed since the first schema but nothing ever inserted into
+    them, so every player's battle history read back empty. Only the
+    running totals on `users` were being kept, which gives a win count
+    but no way to answer "what happened in that match".
+
+    Both players share a single Battle row - it is one match, not two
+    - with `player_id`/`opponent_id` in the order the room created
+    them. Statistics are recorded from player one's side; a fuller
+    version would store a row per side, but this is enough to show a
+    history list without widening the schema.
+
+    Failures here are logged and swallowed. A battle that was fought
+    and scored correctly should not surface an error to the players
+    because the write-up afterwards failed.
+    """
+    db, gen = _get_db_session()
+    try:
+        p1 = find_user_by_email(db, p1_email)
+        p2 = find_user_by_email(db, p2_email)
+        if not p1 or not p2:
+            print("[Battle History] One or both trainers not found; skipping.")
+            return
+
+        winner_id = None
+        if winner_email:
+            winner = p1 if winner_email == p1_email else p2 if winner_email == p2_email else None
+            winner_id = winner.id if winner else None
+
+        battle = models.Battle(
+            player_id=p1.id,
+            opponent_id=p2.id,
+            winner_id=winner_id,
+            mode="random",
+            status="finished",
+            turn_count=turn_count,
+            current_state=final_state,
+            created_at=started_at or datetime.datetime.now(datetime.timezone.utc),
+            ended_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+        db.add(battle)
+        # Needed before the child rows can reference battle.id.
+        db.flush()
+
+        # Keep the tail rather than the head: the decisive turns are
+        # at the end, and an unbounded log would let a long match
+        # write hundreds of rows.
+        for entry in logs[-80:]:
+            db.add(models.BattleLog(
+                battle_id=battle.id,
+                turn_number=entry.get("turn", 0),
+                message=entry.get("text", ""),
+                event_type=entry.get("event_type", "log"),
+            ))
+
+        duration = 0
+        if started_at:
+            delta = datetime.datetime.now(datetime.timezone.utc) - started_at
+            duration = max(0, int(delta.total_seconds()))
+
+        db.add(models.BattleStatistic(
+            battle_id=battle.id,
+            pokemon_used=[m.get("name") for m in (final_state.get("p1_team") or []) if m.get("name")],
+            moves_used={},
+            battle_duration_seconds=duration,
+            critical_hits_landed=crit_counts.get(p1_email, 0),
+            statuses_inflicted=0,
+            weather_summoned=0,
+        ))
+
+        db.commit()
+        print(f"[Battle History] Recorded battle #{battle.id}: {p1_email} vs {p2_email}.")
+    except Exception as e:
+        print(f"[Battle History] Failed to record battle: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        _close_db_session(gen)
+
+
+async def persist_battle_history(**kwargs) -> None:
+    """Runs the history write off the event loop, like the stats one."""
+    await asyncio.to_thread(_persist_battle_history_sync, **kwargs)
+
+
 async def persist_battle_result(user_email: str, is_winner: bool, critical_hits: int = 0) -> None:
     """Runs the blocking SQLAlchemy update off the event loop thread.
     Callers fire this with asyncio.create_task rather than awaiting it
@@ -1228,6 +1674,14 @@ class BattleRoom:
         # Tallied for crud.update_player_xp_and_stats' critical_hits param
         # when the battle concludes; reset on each rematch.
         self.crit_counts: Dict[str, int] = {p1_id: 0, p2_id: 0}
+
+        # Captured so the battle can be written into the history
+        # tables when it ends. Kept in memory for the life of the
+        # room rather than written per-turn: a database round trip
+        # between every move would add latency to the one place
+        # players notice it most.
+        self.started_at = datetime.datetime.now(datetime.timezone.utc)
+        self.history_logs: List[dict] = []
 
     # ---------- helpers ----------
 
@@ -1320,10 +1774,42 @@ class BattleRoom:
         for uid in self.players:
             await self.send_to(uid, self.get_state_for_player(uid))
 
-    async def broadcast_log(self, text: str):
+    async def broadcast_log(self, text: str, event_type: str = "log"):
         log_msg = {"type": "log", "log": {"text": text, "timestamp": int(time.time() * 1000)}}
+        # Also kept for the history write at the end of the battle.
+        # Capped so a very long match cannot grow this without bound.
+        if len(self.history_logs) < 500:
+            self.history_logs.append({
+                "turn": self.turn,
+                "text": text,
+                "event_type": event_type,
+            })
         for uid in self.players:
             await self.send_to(uid, log_msg)
+
+    async def _record_history(self) -> None:
+        """Write this finished battle into the history tables."""
+        try:
+            final_state = {
+                "p1_id": self.p1_id,
+                "p2_id": self.p2_id,
+                "p1_team": self.teams.get(self.p1_id, []),
+                "p2_team": self.teams.get(self.p2_id, []),
+                "winner": self.winner,
+                "turns": self.turn,
+            }
+            await persist_battle_history(
+                p1_email=self.p1_id,
+                p2_email=self.p2_id,
+                winner_email=self.winner,
+                turn_count=self.turn,
+                final_state=final_state,
+                logs=self.history_logs,
+                crit_counts=self.crit_counts,
+                started_at=self.started_at,
+            )
+        except Exception as e:
+            print(f"[Battle History] Could not record room {self.room_id}: {e}")
 
     async def broadcast_game_over(self):
         for uid in self.players:
@@ -1487,6 +1973,12 @@ class BattleRoom:
                 )
             else:
                 await self.broadcast_log("Both parties were wiped out! It's a draw!")
+
+            # Recorded for both outcomes, draws included - a draw is
+            # still a battle that happened and belongs in the history,
+            # even though it has no fair win/loss to score.
+            asyncio.create_task(self._record_history())
+
             await self.broadcast_states()
             await self.broadcast_game_over()
             return True
@@ -1532,6 +2024,10 @@ class BattleRoom:
             self.status = "ongoing"
             self.winner = None
             self.crit_counts = {self.p1_id: 0, self.p2_id: 0}
+            # A rematch is a new battle in the history, so its capture
+            # starts fresh rather than appending to the previous one.
+            self.started_at = datetime.datetime.now(datetime.timezone.utc)
+            self.history_logs = []
 
             await self.broadcast_log(
                 f"Rematch accepted! {self.active_of(self.p1_id)['name']} vs {self.active_of(self.p2_id)['name']}!"
@@ -1574,6 +2070,11 @@ class BattleRoom:
             asyncio.create_task(
                 persist_battle_result(user_id, False, self.crit_counts.get(user_id, 0))
             )
+            # A forfeit is still a completed battle for history
+            # purposes - arguably the one a player most wants to look
+            # back at - so it is recorded like any other.
+            self.winner = other_id
+            asyncio.create_task(self._record_history())
 
 
 class BattleMatchmaker:

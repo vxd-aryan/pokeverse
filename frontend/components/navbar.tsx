@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/store/userStore';
+import { apiUrl } from '@/lib/api';
 
 // --- Explore Dropdown Component ---
 function ExploreDropdown() {
@@ -69,7 +70,7 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
 
     
     try {
-      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, { 
+      const res = await fetch(apiUrl('/api/users/me'), { 
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

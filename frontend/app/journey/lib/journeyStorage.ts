@@ -13,6 +13,12 @@
 
 import type { JourneyPokemon, Challenge } from '../data/types';
 import { STARTING_BAG, STARTING_MONEY, MAX_PER_ITEM } from '../data/items';
+import {
+  markLocallyUpdated,
+  scheduleJourneyPush,
+  pullJourneyFromServer,
+  clearServerJourney,
+} from './journeySync';
 
 export const SAVE_VERSION = 3;
 const STORAGE_KEY = 'pokeverse_journey_state';
@@ -105,11 +111,28 @@ function readAll(): Record<string, JourneyState> {
   }
 }
 
-function writeAll(data: Record<string, JourneyState>) {
+function writeAll(data: Record<string, JourneyState>, username?: string) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error('[journey] could not save progress:', err);
+  }
+
+  // Mirror the change up to the account, debounced.
+  //
+  // Hooked here rather than in each of the forty-odd mutators
+  // below: every one of them already funnels through writeAll, so
+  // this is the single place that cannot be forgotten when a new
+  // one is added.
+  if (username) {
+    try {
+      markLocallyUpdated(username);
+      scheduleJourneyPush(username, () => readAll()[username]);
+    } catch (err) {
+      // Sync is a convenience. A failure here must never stop the
+      // local save, which is what the game actually plays from.
+      console.warn('[journey] sync scheduling failed:', err);
+    }
   }
 }
 
@@ -166,7 +189,12 @@ export function saveRegionState(username: string, regionId: string, region: Jour
   }
   all[username].regions[regionId] = region;
   all[username].currentRegion = regionId;
-  writeAll(all);
+  // Passing the username is what arms the server sync. The other
+  // writeAll call - the one in getJourneyState that materialises a
+  // blank save during a READ - deliberately does not, because
+  // pushing an empty save before the first pull would overwrite
+  // real progress held on the account.
+  writeAll(all, username);
 }
 
 /** Read, change, write — the shape most callers want. */
@@ -534,4 +562,54 @@ export function isRegionUnlocked(
 ): boolean {
   if (!previousRegionId) return true;
   return getRegionState(username, previousRegionId).regionComplete;
+}
+
+// ------------------------------------------------------------
+// Server sync entry point
+// ------------------------------------------------------------
+
+/**
+ * Reconcile this browser's save with the one held on the account.
+ *
+ * Call once when the Journey section mounts, after sign-in. Returns
+ * what happened so the UI can say "progress restored from your
+ * account" rather than silently swapping the save underneath the
+ * player — which, if they had just started a new run, would look
+ * exactly like a bug.
+ *
+ * Safe to call when signed out or offline: it reports that and
+ * changes nothing. The game plays from localStorage either way.
+ */
+export async function syncJourneyWithAccount(username: string) {
+  const local = readAll()[username] ?? null;
+  const result = await pullJourneyFromServer(username, local);
+
+  if (result.action === 'adopted-server' && result.state) {
+    const incoming = result.state as JourneyState;
+
+    // Guard against a save written by a newer build of the game.
+    // Loading a shape this code does not understand would break
+    // the map rather than restore it.
+    if (incoming?.version !== SAVE_VERSION) {
+      console.info('[journey] account save is a different version; keeping local.');
+      return { ...result, action: 'kept-local' as const };
+    }
+
+    const all = readAll();
+    all[username] = incoming;
+    // No username argument: adopting the server's save must not
+    // immediately push it back up.
+    writeAll(all);
+    markLocallyUpdated(username);
+  }
+
+  return result;
+}
+
+/** Wipe both copies, for "start a new adventure". */
+export async function resetJourneyEverywhere(username: string) {
+  const all = readAll();
+  delete all[username];
+  writeAll(all);
+  await clearServerJourney();
 }

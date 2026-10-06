@@ -37,6 +37,27 @@ class User(Base):
     total_critical_hits = Column(Integer, default=0)
     total_statuses_inflicted = Column(Integer, default=0)
 
+    # Journey save file.
+    #
+    # The whole save - starter, party, box, bag, badges, position -
+    # as the JSON blob the client already keeps in localStorage. It
+    # lives here so progress follows the account rather than the
+    # browser: localStorage is per-device and per-origin, so playing
+    # on a phone, switching browsers or clearing site data all used
+    # to mean starting over.
+    #
+    # Deliberately one opaque column rather than normalised tables.
+    # The save's shape is owned by the frontend and has already
+    # changed three times (SAVE_VERSION is at 3); mirroring it in
+    # columns would mean a migration on every gameplay tweak. The
+    # backend only stores and returns it.
+    journey_state = Column(JSON, nullable=True)
+
+    # When the save was last written, used to resolve the case where
+    # a browser holds a local save and the server holds another:
+    # whichever is newer wins. Null until the first sync.
+    journey_updated_at = Column(DateTime, nullable=True)
+
 
 class Battle(Base):
     __tablename__ = "battles"

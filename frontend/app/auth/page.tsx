@@ -5,11 +5,10 @@ import { useUserStore } from '@/store/userStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// The backend URL was hardcoded in this file and several others, so
-// pointing the app at a local API meant editing every one of them.
-// Set NEXT_PUBLIC_API_URL in .env.local to override.
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || 'https://pokeverse-backend1.onrender.com';
+// The backend URL now lives in one module, lib/api.ts. This file
+// used to declare its own copy, which was better than the hardcoded
+// strings elsewhere but still meant two places to keep in step.
+import { API_BASE } from '@/lib/api';
 
 // Styles are injected with a plain <style> tag rather than
 // styled-jsx. Every rule here is global, so scoping buys nothing,

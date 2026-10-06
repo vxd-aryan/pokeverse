@@ -5,6 +5,7 @@ import { useUserStore } from '@/store/userStore'
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api';
 
 // --- Explore Dropdown Component ---
 function ExploreDropdown() {
@@ -70,7 +71,7 @@ function UserProfileDropdown({ user, logout }: { user: any, logout: () => void }
       localStorage.getItem('token');
 
     try {
-      const res = await fetch(`https://pokeverse-backend1.onrender.com/api/users/me`, {
+      const res = await fetch(apiUrl('/api/users/me'), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -168,7 +169,7 @@ export default function RootLayout({
       localStorage.getItem('token');
 
     if (token && !user) {
-      fetch('https://pokeverse-backend1.onrender.com/api/users/me', {
+      fetch(apiUrl('/api/users/me'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }

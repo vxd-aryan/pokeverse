@@ -98,7 +98,7 @@ interface PartyPick {
 type IntroStage = 'trainers' | 'throw' | 'sendout' | null;
 
 const MAX_PARTY = 3;
-const API_BASE = 'https://pokeverse-backend1.onrender.com';
+import { API_BASE, wsUrl as buildWsUrl } from '@/lib/api';
 
 // --- Token Extraction Helper ---
 const getTrainerToken = (): string | null => {
@@ -416,7 +416,7 @@ export default function BattlePlayPage() {
 
   const connectWebSocket = useCallback((token: string, retryCount: number) => {
     try {
-      const wsUrl = `wss://pokeverse-backend1.onrender.com/api/battle/ws?token=${encodeURIComponent(token)}`;
+      const wsUrl = buildWsUrl(`/api/battle/ws?token=${encodeURIComponent(token)}`);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;

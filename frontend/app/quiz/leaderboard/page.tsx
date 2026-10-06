@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api';
 
 interface LeaderboardUser {
   id: number;
@@ -30,7 +31,7 @@ export default function LeaderboardPage() {
         }
 
         // Updated to match the backend route from your FastAPI engine
-        const response = await fetch('https://pokeverse-backend1.onrender.com/api/users/leaderboard', {
+        const response = await fetch(apiUrl('/api/users/leaderboard'), {
           headers: {
             'Authorization': `Bearer ${token}`
           }

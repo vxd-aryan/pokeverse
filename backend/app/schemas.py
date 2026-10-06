@@ -80,6 +80,7 @@ class UserLogin(BaseModel):
         # unusual capitalisation of a unique address still gets in.
         return (v or "").strip()
 
+
 class AuthResponse(BaseModel):
     """What /api/auth/login and /api/auth/register return.
 
@@ -197,3 +198,31 @@ class BattleHistoryBase(BaseModel):
     ended_at: Optional[datetime.datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ─── JOURNEY SAVE SCHEMAS ───
+
+class JourneyStatePut(BaseModel):
+    """A Journey save being written up from the client.
+
+    `state` is the client's whole save blob, stored opaquely. The
+    backend never inspects its contents - the shape belongs to the
+    frontend and has already changed several times.
+
+    `save_version` and `updated_at` travel alongside it so the server
+    can tell a newer save from an older one without parsing the blob.
+    """
+    state: dict
+    save_version: int = Field(..., ge=1)
+    updated_at: Optional[datetime.datetime] = None
+
+
+class JourneyStateResponse(BaseModel):
+    """What the client gets back when it asks for its save."""
+    state: Optional[dict] = None
+    save_version: Optional[int] = None
+    updated_at: Optional[datetime.datetime] = None
+    # True when the server has never been given a save for this
+    # account, so the client knows to keep whatever it has locally
+    # rather than treating the empty response as "your save is gone".
+    empty: bool = False

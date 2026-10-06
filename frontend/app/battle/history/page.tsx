@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUserStore } from "@/store/userStore";
+import { apiUrl } from '@/lib/api';
 
 // --- TypeScript Interfaces ---
 interface MatchRecord {
@@ -26,7 +27,7 @@ export default function BattleHistoryPage() {
     const fetchHistory = async () => {
       try {
         const token = localStorage.getItem("token");
-       const res = await fetch("https://pokeverse-backend1.onrender.com/api/battle/history", {
+       const res = await fetch(apiUrl("/api/battle/history"), {
           headers: { 
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {})
